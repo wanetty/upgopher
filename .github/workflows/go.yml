@@ -22,7 +22,7 @@ jobs:
     steps:
     - name: go-crossbuild
     # You may pin to the exact commit or the version.
-      uses: wanetty/upgopher
+      uses: wanetty/upgopher@v1.0.0
       with:
         # An application name
           name: upgopher
