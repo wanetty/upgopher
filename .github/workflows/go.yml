@@ -20,13 +20,14 @@ jobs:
           - goarch: arm64
             goos: windows
     steps:
-    - name: go-crossbuild
-    # You may pin to the exact commit or the version.
-      uses: izumin5210/action-go-crossbuild@v1.0.0
+    - name: actions-go-release
+      # You may pin to the exact commit or the version.
+      # uses: RomanosTrechlis/actions-go-release@81b684eff0b91b7834caee0ee6bf7124cb821c5a
+      uses: RomanosTrechlis/actions-go-release@v1.0
       with:
-        # An application name
-          name: upgopher
-          # Space or comma separated list of GOARCH
-          arch: ${{ matrix.goarch }}
-          # Space or comma separated list of GOOS
-          os: ${{ matrix.goos }}
+        # Release's name
+        release_name: upgopher-v1.0.0
+        # Go's target operating system
+        goos: ${{ matrix.goos }}
+        # Go's target architecture
+        goarch: ${{ matrix.goarch }}
