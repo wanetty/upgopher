@@ -1,6 +1,6 @@
 # Upgopher
 
-<p align="center"><img width=600 alt="Logo" src="https://github.com/wanetty/upgopher/blob/main/static/logopher.png"></p>
+<p align="center"><img width=250 alt="Logo" src="https://github.com/wanetty/upgopher/blob/main/static/logopher.png"></p>
 
 
 This is a simple Go web server that allows users to upload files and view a list of the uploaded files. The server can be run locally or deployed to a remote server.
@@ -9,10 +9,10 @@ This project tries to replace all file servers that use python, since there are 
 
 ![Exmaple Photo](./static/example.png)
 ## Features
-Users can upload files by selecting a file and clicking the "Upload" button
-Uploaded files are stored in the "uploads" directory by default, but the directory can be changed using the -dir flag
-Users can view a list of the uploaded files by visiting the root URL
-Basic authentication is available to restrict access to the server. To use it, set the -user and -pass flags with the desired username and password.
+* Users can upload files by selecting a file and clicking the "Upload" button
+* Uploaded files are stored in the "uploads" directory by default, but the directory can be changed using the -dir flag
+* Users can view a list of the uploaded files by visiting the root URL
+* Basic authentication is available to restrict access to the server. To use it, set the -user and -pass flags with the desired username and password.
 ## Usage
 To run the server locally:
 
@@ -26,7 +26,7 @@ go build gopher
 
 ### Help Output:
 
-````bash
+```bash
 ./upgopher -h
 Usage of ./upgopher:
   -dir string
