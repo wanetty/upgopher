@@ -10,6 +10,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - name: Set up Go
+      uses: actions/setup-go@v3
     - name: GoReleaser Action
       # You may pin to the exact commit or the version.
       # uses: goreleaser/goreleaser-action@f82d6c1c344bcacabba2c841718984797f664a6b
