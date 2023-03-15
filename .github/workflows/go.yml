@@ -20,14 +20,10 @@ jobs:
           - goarch: arm64
             goos: windows
     steps:
-    - name: actions-go-release
+    - name: GoReleaser Action
       # You may pin to the exact commit or the version.
-      # uses: RomanosTrechlis/actions-go-release@81b684eff0b91b7834caee0ee6bf7124cb821c5a
-      uses: RomanosTrechlis/actions-go-release@v1.0
+      # uses: goreleaser/goreleaser-action@f82d6c1c344bcacabba2c841718984797f664a6b
+      uses: goreleaser/goreleaser-action@v4.2.0
       with:
-        # Release's name
-        release_name: upgopher-v1.0.0
-        # Go's target operating system
-        goos: ${{ matrix.goos }}
-        # Go's target architecture
-        goarch: ${{ matrix.goarch }}
+        # GoReleaser Distribution (goreleaser or goreleaser-pro)
+        distribution: goreleaser
