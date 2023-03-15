@@ -19,7 +19,7 @@ To run the server locally:
 ```bash
 git@github.com:wanetty/upgopher.git
 cd upgopher
-go build gopher
+go build
 ```
 
 
