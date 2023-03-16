@@ -1,3 +1,3 @@
-module github.com/wanetty/upgopher
+module upgopher
 
 go 1.19
