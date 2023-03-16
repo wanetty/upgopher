@@ -18,6 +18,9 @@ func main() {
 	dir := flag.String("dir", "./uploads", "directory path")
 	user := flag.String("user", "", "username for authentication")
 	pass  := flag.String("pass", "", "password for authentication")
+	useTLS := flag.Bool("tls", false, "utilizar HTTPS")
+	certFile := flag.String("cert", "", "certificado para HTTPS")
+	keyFile := flag.String("key", "", "clave privada para HTTPS")
 	flag.Parse()
 
 	// Ensure the directory path exists.
@@ -27,7 +30,14 @@ func main() {
 	fileHandlerWithDir := func(w http.ResponseWriter, r *http.Request) {
 		fileHandler(w, r, *dir)
 	}
-
+	if *useTLS && (*certFile == "" || *keyFile == "") {
+		log.Fatalf("Debe proporcionar el certificado y la clave privada para usar TLS")
+	}
+	if (*user != "" && *pass == "") || (*user == "" && *pass != "") {
+		log.Fatalf("If you use the username or password you have to use both.")
+		return
+	}
+	
 	if *user != "" && *pass != "" {
 		userByte := []byte(*user)
 		passByte := []byte(*pass)
@@ -40,11 +50,8 @@ func main() {
 		
 		// Serve the files under the "/uploads" path
 		http.Handle("/uploads/", http.StripPrefix("/uploads/", protectedHandler))
-	}  else if (*user != "" && *pass == "") || (*user == "" && *pass != "") {
-		log.Fatalf("If you use the username or password you have to use both.")
-		return
+
 	}else{
-		//http.HandleFunc("/", fileHandlerWithDir)
 		http.HandleFunc("/", fileHandlerWithDir)
 		fs := http.FileServer(http.Dir(*dir))
 		http.Handle("/uploads/", http.StripPrefix("/uploads/", fs))
@@ -54,8 +61,17 @@ func main() {
 
 	addr := fmt.Sprintf(":%d", *port)
 	log.Printf("Web server on %s", addr)
-	if err := http.ListenAndServe(addr, nil); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+
+	if *useTLS {
+		log.Printf("Usando TLS")
+		if err := http.ListenAndServeTLS(addr, *certFile, *keyFile, nil); err != nil {
+			log.Fatalf("Error al iniciar el servidor HTTPS: %v", err)
+		}
+	} else {
+		log.Printf("Usando HTTP")
+		if err := http.ListenAndServe(addr, nil); err != nil {
+			log.Fatalf("Error al iniciar el servidor HTTP: %v", err)
+		}
 	}
 }
 
