@@ -19,7 +19,7 @@ To run the server locally:
 ```bash
 git@github.com:wanetty/upgopher.git
 cd upgopher
-go build cmd/upgopher/upgopher.go 
+go build 
 ```
 
 
@@ -29,12 +29,18 @@ go build cmd/upgopher/upgopher.go
 ```bash
 ./upgopher -h
 Usage of ./upgopher:
+  -cert string
+        certificado para HTTPS
   -dir string
         directory path (default "./uploads")
+  -key string
+        clave privada para HTTPS
   -pass string
         password for authentication
   -port int
         port number (default 9090)
+  -tls
+        utilizar HTTPS
   -user string
         username for authentication
 ```
