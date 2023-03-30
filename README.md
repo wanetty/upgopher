@@ -13,11 +13,13 @@ This project tries to replace all file servers that use python, since there are 
 * Uploaded files are stored in the "uploads" directory by default, but the directory can be changed using the -dir flag
 * Users can view a list of the uploaded files by visiting the root URL
 * Basic authentication is available to restrict access to the server. To use it, set the -user and -pass flags with the desired username and password.
+* Traffic via HTTPS.
+* Possibility to browse through folders and upload files...
 ## Usage
 To run the server locally:
 
 ```bash
-git@github.com:wanetty/upgopher.git
+git clone https://github.com/wanetty/upgopher.git
 cd upgopher
 go build 
 ```
@@ -49,3 +51,6 @@ Usage of ./upgopher:
 
 ## License
 This project is licensed under the MIT License. See the LICENSE file for details.
+
+## Info
+For more information, you can find me on Twitter as [@gm_eduard](https://twitter.com/gm_eduard/).
