@@ -8,7 +8,7 @@ This is a simple Go web server that allows users to upload files and view a list
 
 This project tries to replace all file servers that use python, since there are always problems with libraries. Sometimes we want it to be on a remote pc and go gives you the possibility of cross-platform compilation and to work anywhere...
 
-![Exmaple Photo](./2023-04-11_09-14.png)
+![Exmaple Photo](./static/example.png)
 ## Features
 * Users can upload files by selecting a file and clicking the "Upload" button
 * Uploaded files are stored in the "uploads" directory by default, but the directory can be changed using the -dir flag
