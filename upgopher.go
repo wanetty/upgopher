@@ -151,44 +151,8 @@
 
 	func fileHandler(w http.ResponseWriter, r *http.Request, dir string) {
 		log.Printf("[%s] %s %s\n", r.Method, r.URL.String(), r.RemoteAddr)
-		if r.Method == http.MethodPost {
-			file, header, err := r.FormFile("file")
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			defer file.Close()
-			currentPath := r.URL.Query().Get("path")
-			if currentPath != "" {
-				decodedPath, err := base64.StdEncoding.DecodeString(currentPath)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-				dir = filepath.Join(dir, string(decodedPath))
-				if isUnsafePath(dir) {
-					http.Error(w, "Bad path", http.StatusNotFound)
-					return
-				}
-			}
-			filename := header.Filename
-			targetPath := filepath.Join(dir, filename)
-			targetFile, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE, 0666)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			defer targetFile.Close()
-
-			_, err = io.Copy(targetFile, file)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			http.Redirect(w, r, r.URL.String(), http.StatusSeeOther)
-			return
-		}
 		currentPath := r.URL.Query().Get("path")
+		
 		if currentPath != "" {
 			decodedPath, err := base64.StdEncoding.DecodeString(currentPath)
 			if err != nil {
@@ -201,102 +165,131 @@
 				return
 			}
 		}
-
+	
+		if r.Method == http.MethodPost {
+			handlePostRequest(w, r, dir)
+		} else {
+			handleGetRequest(w, r, dir, currentPath)
+		}
+	}
+	
+	func handlePostRequest(w http.ResponseWriter, r *http.Request, dir string) {
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+	
+		filename := header.Filename
+		targetPath := filepath.Join(dir, filename)
+		targetFile, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE, 0666)
+	
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer targetFile.Close()
+	
+		_, err = io.Copy(targetFile, file)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, r.URL.String(), http.StatusSeeOther)
+	}
+	
+	func handleGetRequest(w http.ResponseWriter, r *http.Request, dir string, currentPath string) {
 		files, err := ioutil.ReadDir(dir)
 		if err != nil {
 			http.Error(w, "The path not exists", http.StatusInternalServerError)
 			return
 		}
-
+	
 		fileNames := make([]string, 0, len(files))
 		for _, file := range files {
-			if file.IsDir() {
-				continue
+			if !file.IsDir() {
+				fileNames = append(fileNames, file.Name())
 			}
-			fileNames = append(fileNames, file.Name())
 		}
-		
-
+	
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		var table string
+		table, err := createTable(files, dir, currentPath)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		backButton := createBackButton(currentPath)
+		fmt.Fprintf(w, statics.GetTemplates(table, backButton))
+	}
+	
+	func createTable(files []os.FileInfo, dir string, currentPath string) (string, error) {
+		table := ""
 		for _, file := range files {
 			if file.Name()[0] == '.' {
-				continue // Ignore hidden files and folders
+				continue
 			}
-
+	
 			fileName := file.Name()
 			filePath := filepath.Join(dir, fileName)
-
-			// Get file size in bytes
 			fileInfo, err := os.Stat(filePath)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
+				return "", err
 			}
+	
 			if file.IsDir() {
-				// Añadir navegación para carpetas
-				var decodedFilePath []byte
-				if currentPath != "" {
-					// Encode the file path to include it in the URL
-					decodedFilePath, _ = base64.StdEncoding.DecodeString(currentPath)
-					
-				}
-				encodedPath := base64.StdEncoding.EncodeToString([]byte(filepath.Join(string(decodedFilePath), fileName)))
-				folderLink := fmt.Sprintf(`<a href="/?path=%s">%s</a>`, encodedPath, fileName)
-				fileSize := "-"
-				// Add row to the table
-				table += fmt.Sprintf(`
-				<tr>
-					<td>%s</td>
-					<td>%s</td>
-					<td class="tdspe">-</td>
-				</tr>
-			`, folderLink, fileSize)
+				table += createFolderRow(file, currentPath)
 			} else {
-				var fileSize float64
-				var units string
-				var encodedFilePath string
-				var decodedFilePath []byte
-				if currentPath != "" {
-					// Encode the file path to include it in the URL
-					decodedFilePath, _ = base64.StdEncoding.DecodeString(currentPath)
-					
-				}
-				encodedFilePath = base64.StdEncoding.EncodeToString([]byte(filepath.Join(string(decodedFilePath), fileName)))
-				downloadLink := fmt.Sprintf(`<a class="btn" href="/uploads/?path=%s"><i class="fa fa-download"></i></a>`, encodedFilePath)
-				copyURLButton := fmt.Sprintf(`<button class="btn" onclick="copyToClipboard('%s')"><i class="fa fa-link"></i></button>`, encodedFilePath)
-				if fileInfo.Size() < 1000 {
-					fileSize = float64(fileInfo.Size())
-					units = "bytes"
-				} else if  fileInfo.Size() < 1000000 {
-					fileSize = float64(fileInfo.Size()) / 1000
-					units = "KBytes"
-					
-				} else {
-					fileSize = float64(fileInfo.Size()) / 1000000
-					units = "MBytes"
-				}
-
-				// Create download link and copy URL button
-
-				// Add row to the table
-				table += fmt.Sprintf(`
-				<tr>
-					<td>%s</td>
-					<td>%.2f %s</td>
-					<td><div style="display: flex;">%s%s</div></td>
-				</tr>
-				`, fileName, fileSize, units, downloadLink, copyURLButton)
-						}
-						
-					}
-
-		// Añadir botón para volver a la raíz
-		var backButton string
-		if currentPath != "" {
-			backButton = `<button class="btn" onclick="window.location.href='/'" style="height: 50px;width: 50px;"><i class="fa fa-home"></i></button>`
+				table += createFileRow(file, currentPath, fileInfo)
+			}
 		}
-
-		// End the HTML code
-		fmt.Fprintf(w,statics.GetTemplates(table, backButton))
+		return table, nil
+	}
+	
+	func createFolderRow(file os.FileInfo, currentPath string) string {
+		encodedPath := createEncodedPath(currentPath, file.Name())
+		folderLink := fmt.Sprintf(`<a href="/?path=%s">%s</a>`, encodedPath, file.Name())
+		return fmt.Sprintf(`
+			<tr>
+				<td>%s</td>
+				<td>-</td>
+				<td class="tdspe">-</td>
+			</tr>
+		`, folderLink)
+	}
+	
+	func createFileRow(file os.FileInfo, currentPath string, fileInfo os.FileInfo) string {
+		encodedFilePath := createEncodedPath(currentPath, file.Name())
+		downloadLink := fmt.Sprintf(`<a class="btn" href="/uploads/?path=%s"><i class="fa fa-download"></i></a>`, encodedFilePath)
+		copyURLButton := fmt.Sprintf(`<button class="btn" onclick="copyToClipboard('%s')"><i class="fa fa-link"></i></button>`, encodedFilePath)
+		fileSize, units := formatFileSize(fileInfo.Size())
+		return fmt.Sprintf(`
+			<tr>
+				<td>%s</td>
+				<td>%.2f %s</td>
+				<td><div style="display: flex;">%s%s</div></td>
+			</tr>
+		`, file.Name(), fileSize, units, downloadLink, copyURLButton)
+	}
+	
+	func createEncodedPath(currentPath string, fileName string) string {
+		decodedFilePath, _ := base64.StdEncoding.DecodeString(currentPath)
+		return base64.StdEncoding.EncodeToString([]byte(filepath.Join(string(decodedFilePath), fileName)))
+	}
+	
+	func formatFileSize(size int64) (float64, string) {
+		if size < 1000 {
+			return float64(size), "bytes"
+		} else if size < 1000000 {
+			return float64(size) / 1000, "KBytes"
+		} else {
+			return float64(size) / 1000000, "MBytes"
+		}
+	}
+	
+	func createBackButton(currentPath string) string {
+		if currentPath != "" {
+			return `<button class="btn" onclick="window.location.href='/'" style="height: 50px;width: 50px;"><i class="fa fa-home"></i></button>`
+		}
+		return ""
 	}
