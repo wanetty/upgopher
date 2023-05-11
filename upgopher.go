@@ -17,103 +17,67 @@
 	)
 
 	func main() {
-
 		port := flag.Int("port", 9090, "port number")
 		dir := flag.String("dir", "./uploads", "directory path")
 		user := flag.String("user", "", "username for authentication")
-		pass  := flag.String("pass", "", "password for authentication")
+		pass := flag.String("pass", "", "password for authentication")
 		useTLS := flag.Bool("tls", false, "utilizar HTTPS")
 		certFile := flag.String("cert", "", "certificado para HTTPS")
 		keyFile := flag.String("key", "", "clave privada para HTTPS")
 		flag.Parse()
 
-		// Ensure the directory path exists.
 		if _, err := os.Stat(*dir); os.IsNotExist(err) {
 			os.MkdirAll(*dir, 0755)
 		}
+
 		fileHandlerWithDir := func(w http.ResponseWriter, r *http.Request) {
 			fileHandler(w, r, *dir)
 		}
+
 		if *useTLS && (*certFile == "" || *keyFile == "") {
 			log.Fatalf("Debe proporcionar el certificado y la clave privada para usar TLS")
 		}
+
 		if (*user != "" && *pass == "") || (*user == "" && *pass != "") {
 			log.Fatalf("If you use the username or password you have to use both.")
 			return
 		}
-		
+
+		uploadHandler := func(w http.ResponseWriter, r *http.Request) {
+			log.Printf("[%s] %s%s %s\n", r.Method, "/uploads/", r.URL.String(), r.RemoteAddr)
+
+			encodedFilePath := r.URL.Query().Get("path")
+
+			decodedFilePath, err := base64.StdEncoding.DecodeString(encodedFilePath)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			fullFilePath := filepath.Join(*dir, string(decodedFilePath))
+
+			if isUnsafePath(fullFilePath) {
+				http.Error(w, "Bad path", http.StatusNotFound)
+				return
+			}
+
+			if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
+				http.Error(w, "File not found", http.StatusNotFound)
+				return
+			}
+
+			http.ServeFile(w, r, fullFilePath)
+		}
+
 		if *user != "" && *pass != "" {
 			userByte := []byte(*user)
 			passByte := []byte(*pass)
 			http.HandleFunc("/", basicAuth(fileHandlerWithDir, userByte, passByte))
-			protectedHandler := basicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				log.Printf("[%s] %s%s %s\n", r.Method, "/uploads/",r.URL.String(), r.RemoteAddr)
-				// Get the encoded file path from the URL query
-				encodedFilePath := r.URL.Query().Get("path")
-			
-				// Decode the file path
-				decodedFilePath, err := base64.StdEncoding.DecodeString(encodedFilePath)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-			
-				// Join the directory path with the decoded file path
-				fullFilePath := filepath.Join(*dir, string(decodedFilePath))
-				// Check if the file exists
-				if isUnsafePath(fullFilePath) {
-					http.Error(w, "Bad path", http.StatusNotFound)
-					return
-				}
-				if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
-					http.Error(w, "File not found", http.StatusNotFound)
-					return
-				}
-			
-				// Serve the file using the file server handler
-				http.ServeFile(w, r, fullFilePath)
-			}), userByte, passByte)
-			
-			// Serve the files under the "/uploads" path
-			http.Handle("/uploads/", http.StripPrefix("/uploads/", protectedHandler))
-
-		}else{
+			http.Handle("/uploads/", http.StripPrefix("/uploads/", basicAuth(http.HandlerFunc(uploadHandler), userByte, passByte)))
+		} else {
 			http.HandleFunc("/", fileHandlerWithDir)
-			protectedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				log.Printf("[%s] %s%s %s\n", r.Method, "/uploads/",r.URL.String(), r.RemoteAddr)
-				// Get the encoded file path from the URL query
-				encodedFilePath := r.URL.Query().Get("path")
-			
-				// Decode the file path
-				decodedFilePath, err := base64.StdEncoding.DecodeString(encodedFilePath)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-			
-				// Join the directory path with the decoded file path
-				fullFilePath := filepath.Join(*dir, string(decodedFilePath))
-				// Check if the file exists
-				if isUnsafePath(fullFilePath) {
-					http.Error(w, "Bad path", http.StatusNotFound)
-					return
-				}
-				if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
-					http.Error(w, "File not found", http.StatusNotFound)
-					return
-				}
-			
-				// Serve the file using the file server handler
-				http.ServeFile(w, r, fullFilePath)
-			})
-			
-			// Serve the files under the "/uploads" path
-			http.Handle("/uploads/", http.StripPrefix("/uploads/", protectedHandler))
-
-			//http.Handle("/uploads/", http.StripPrefix("/uploads/", fs))
+			http.Handle("/uploads/", http.StripPrefix("/uploads/", http.HandlerFunc(uploadHandler)))
 		}
-		
-		
 
 		addr := fmt.Sprintf(":%d", *port)
 		log.Printf("Web server on %s", addr)
