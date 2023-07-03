@@ -187,10 +187,11 @@ func getHTML() string {
 func getJS() string {
 	javascript := `<script>
 	// Copy URL to clipboard
-	function copyToClipboard(fileName) {
-		const baseUrl = window.location.href.split('?')[0]; // Obtiene la URL base de la página actual sin los parámetros
-  		const urlWithParam = baseUrl + "uploads/?path=" + fileName; // Concatena la URL base con el parámetro que se pasa a la función
-  		navigator.clipboard.writeText(urlWithParam); 
+	function copyToClipboard(pathBase64, fileName) {
+		const decodedPath = atob(pathBase64); 
+		const baseUrl = window.location.origin;
+		const urlWithParam = baseUrl + "/raw/" + decodedPath + "/"+ fileName;
+		navigator.clipboard.writeText(urlWithParam); 
 	}
 	</script>
 	`
