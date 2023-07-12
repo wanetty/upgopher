@@ -48,43 +48,94 @@ func main() {
     }
 
     uploadHandler := func(w http.ResponseWriter, r *http.Request) {
-        log.Printf("[%s] %s%s %s\n", r.Method, "/uploads/", r.URL.String(), r.RemoteAddr)
+		log.Printf("[%s] %s%s %s\n", r.Method, "/download/", r.URL.String(), r.RemoteAddr)
+	
+		encodedFilePath := r.URL.Query().Get("path")
+	
+		decodedFilePath, err := base64.StdEncoding.DecodeString(encodedFilePath)
+	
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	
+		fullFilePath := filepath.Join(*dir, string(decodedFilePath))
+	
+		if isUnsafePath(fullFilePath) {
+			http.Error(w, "Bad path", http.StatusNotFound)
+			return
+		}
+	
+		if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
+	
+		// Extract filename from the full file path
+		_, filename := filepath.Split(fullFilePath)
+	
+		// Set the 'Content-Disposition' header so the downloaded file has the original filename
+		w.Header().Set("Content-Disposition", "attachment; filename=" + filename)
+	
+		http.ServeFile(w, r, fullFilePath)
+	}
 
-        encodedFilePath := r.URL.Query().Get("path")
+	deleteHandler := func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("[%s] %s%s %s\n", r.Method, "/delete/", r.URL.String(), r.RemoteAddr)
+	
+		encodedFilePath := r.URL.Query().Get("path")
+	
+		decodedFilePath, err := base64.StdEncoding.DecodeString(encodedFilePath)
+	
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	
+		fullFilePath := filepath.Join(*dir, string(decodedFilePath))
+	
+		if isUnsafePath(fullFilePath) {
+			http.Error(w, "Bad path", http.StatusNotFound)
+			return
+		}
+	
+		if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
+	
+		// Remove the file
+		err = os.Remove(fullFilePath)
+	
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	
+		if encodedFilePath == "" {
+			http.Redirect(w, r, "/", http.StatusSeeOther)
 
-        decodedFilePath, err := base64.StdEncoding.DecodeString(encodedFilePath)
-
-        if err != nil {
-            http.Error(w, err.Error(), http.StatusInternalServerError)
-            return
-        }
-
-        fullFilePath := filepath.Join(*dir, string(decodedFilePath))
-
-
-        if isUnsafePath(fullFilePath) {
-            http.Error(w, "Bad path", http.StatusNotFound)
-            return
-        }
-
-        if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
-            http.Error(w, "File not found", http.StatusNotFound)
-            return
-        }
-
-        http.ServeFile(w, r, fullFilePath)
-    }
+		}else{
+			dirPath, _ := filepath.Split(string(decodedFilePath))
+			encodedDirPath := base64.StdEncoding.EncodeToString([]byte(dirPath))
+			http.Redirect(w, r, "/?path=" + encodedDirPath, http.StatusSeeOther)
+		}
+		
+	}
 
     if *user != "" && *pass != "" {
         userByte := []byte(*user)
         passByte := []byte(*pass)
         http.HandleFunc("/", basicAuth(fileHandlerWithDir, userByte, passByte))
-        http.Handle("/uploads/", http.StripPrefix("/uploads/", basicAuth(http.HandlerFunc(uploadHandler), userByte, passByte)))
+		http.Handle("/delete/", http.StripPrefix("/delete/", basicAuth(http.HandlerFunc(deleteHandler), userByte, passByte)))
+        http.Handle("/download/", http.StripPrefix("/download/", basicAuth(http.HandlerFunc(uploadHandler), userByte, passByte)))
         http.Handle("/raw/", http.StripPrefix("/raw/", basicAuth(rawHandlerWithDir, userByte, passByte)))
+		
 
     } else {
         http.HandleFunc("/", fileHandlerWithDir)
-        http.Handle("/uploads/", http.StripPrefix("/uploads/", http.HandlerFunc(uploadHandler)))
+		http.Handle("/delete/", http.StripPrefix("/delete/", http.HandlerFunc(deleteHandler)))
+        http.Handle("/download/", http.StripPrefix("/download/", http.HandlerFunc(uploadHandler)))
         http.Handle("/raw/", http.StripPrefix("/raw/", rawHandlerWithDir))
 
     }
@@ -260,16 +311,17 @@ func createFolderRow(file os.FileInfo, currentPath string) string {
 
 func createFileRow(file os.FileInfo, currentPath string, fileInfo os.FileInfo) string {
     encodedFilePath := createEncodedPath(currentPath, file.Name())
-    downloadLink := fmt.Sprintf(`<a class="btn" href="/uploads/?path=%s"><i class="fa fa-download"></i></a>`, encodedFilePath)
-    copyURLButton := fmt.Sprintf(`<button class="btn" onclick="copyToClipboard('%s', '%s')"><i class="fa fa-link"></i></button>`, currentPath, file.Name())
+    downloadLink := fmt.Sprintf(`<a class="btn" href="/download/?path=%s"><i class="fa fa-download"></i></a>`, encodedFilePath)
+    deleteLink := fmt.Sprintf(`<a class="btn" href="/delete/?path=%s"><i class="fa fa-trash"></i></a>`, encodedFilePath)
+	copyURLButton := fmt.Sprintf(`<button class="btn" onclick="copyToClipboard('%s', '%s')"><i class="fa fa-link"></i></button>`, currentPath, file.Name())
     fileSize, units := formatFileSize(fileInfo.Size())
     return fmt.Sprintf(`
         <tr>
             <td>%s</td>
             <td>%.2f %s</td>
-            <td><div style="display: flex;">%s%s</div></td>
+            <td><div style="display: flex;">%s%s%s</div></td>
         </tr>
-    `, file.Name(), fileSize, units, downloadLink, copyURLButton)
+    `, file.Name(), fileSize, units, downloadLink, copyURLButton,deleteLink)
 }
 
 func createEncodedPath(currentPath string, fileName string) string {
