@@ -1,21 +1,21 @@
 package statics
 
 import (
-    "fmt"
-
+	"fmt"
 )
 
-func GetTemplates(table string,backButton string) string {
-    html := getHTML()
-    css := getCSS()
-    javascript := getJS()
+func GetTemplates(table string, backButton string) string {
+	html := getHTML()
+	css := getCSS()
+	javascript := getJS()
 
-    result := fmt.Sprintf(html, css, table, backButton, javascript)
-    return result
+	result := fmt.Sprintf(html, css, table, backButton, javascript)
+	return result
 }
-//CSS Code
+
+// CSS Code
 func getCSS() string {
-    cssCode := `
+	cssCode := `
     <style>
         body {
             background-color: #f5f5f5;
@@ -142,13 +142,39 @@ func getCSS() string {
             border: 1px dashed black;
             vertical-align: middle;
         }
+        .code-box {
+            margin: 5px auto; 
+            background-color: #ffffff;
+            color: #009879;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            width: 700px;
+            overflow-x: auto;
+            white-space: pre;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+            width: 80%; /* Ajusta el ancho según tus necesidades */
+        }
+        
+        .line-number {
+            color: #5c6370;
+            display: inline-block;
+            width: 30px;
+            user-select: none;
+        }
+        
+        .highlight {
+            color: #e06c75;
+        }
+        
+          
     </style>
     `
-    return cssCode
+	return cssCode
 }
-//HTML Code
+
+// HTML Code
 func getHTML() string {
-    html := `
+	html := `
     <!DOCTYPE html>
     <html>
         <head>
@@ -174,28 +200,33 @@ func getHTML() string {
                 <tbody>
                 %s
                 </tbody>
-            </table>
-            <br>
-            <div id="drop_zone" ondrop="dropHandler(event);" ondragover="dragOverHandler(event);">
-                <h1>Upload a File</h1>
-            </div>
-            <form method="POST" class="form-group" enctype="multipart/form-data">
-                <input type="file" name="file" id="file-upload"><input type="submit" class="btn" value="Upload">
-            </form>
-            <div style="display: flex; justify-content: center; align-items: center; height: 100px;">
-                %s
-            </div>
+        </table>
+        <br>
+        <div class="code-box">
+            <div><span class="line-number">1</span>curl -X POST -F "file=@[/path/to/file]" http://[SERVER]:[PORT]/</div>
+        </div>
+        <br>
+        <div id="drop_zone" ondrop="dropHandler(event);" ondragover="dragOverHandler(event);">
+            <h1>Upload a File</h1>
+        </div>
+        <form method="POST" class="form-group" enctype="multipart/form-data">
+            <input type="file" name="file" id="file-upload"><input type="submit" class="btn" value="Upload">
+        </form>
+        
+        <div style="display: flex; justify-content: center; align-items: center; height: 100px;">
+            %s
+        </div>
             %s
         </body>
     </html>
     `
-    return html
+	return html
 
 }
 
-//Javascript Code
+// Javascript Code
 func getJS() string {
-    javascript := `<script>
+	javascript := `<script>
 
     var input = document.getElementById('file-upload');
 
@@ -229,5 +260,5 @@ func getJS() string {
     }
     </script>
     `
-    return javascript
+	return javascript
 }
