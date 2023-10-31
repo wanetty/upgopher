@@ -5,8 +5,9 @@ import (
 	"encoding/base64"
 	"flag"
 	"fmt"
+	"html"
 	"io"
-	"io/ioutil"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -59,8 +60,10 @@ func main() {
 
 		fullFilePath := filepath.Join(*dir, string(decodedFilePath))
 
-		if isUnsafePath(fullFilePath) {
-			http.Error(w, "Bad path", http.StatusNotFound)
+		isSafe, err := isSafePath(*dir, fullFilePath)
+		if err != nil || !isSafe {
+			http.Error(w, "Bad path", http.StatusForbidden)
+			log.Printf("[%s - %s] %s %s\n", r.Method, "403", r.URL.Path, r.RemoteAddr)
 			return
 		}
 
@@ -92,8 +95,10 @@ func main() {
 
 		fullFilePath := filepath.Join(*dir, string(decodedFilePath))
 
-		if isUnsafePath(fullFilePath) {
-			http.Error(w, "Bad path", http.StatusNotFound)
+		isSafe, err := isSafePath(*dir, fullFilePath)
+		if err != nil || !isSafe {
+			http.Error(w, "Bad path", http.StatusForbidden)
+			log.Printf("[%s - %s] %s %s\n", r.Method, "403", r.URL.Path, r.RemoteAddr)
 			return
 		}
 
@@ -153,27 +158,34 @@ func main() {
 	}
 }
 
-func isUnsafePath(inputPath string) bool {
-	return strings.Contains(inputPath, "../") || strings.Contains(inputPath, "..")
+func isSafePath(baseDir, userPath string) (bool, error) {
+	absBaseDir, err := filepath.Abs(baseDir)
+	if err != nil {
+		return false, err
+	}
+
+	absUserPath, err := filepath.Abs(userPath)
+	if err != nil {
+		return false, err
+	}
+
+	return strings.HasPrefix(absUserPath, absBaseDir), nil
 }
 
 func rawHandler(dir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		return_code := "200"
 		path := strings.TrimPrefix(r.URL.Path, "/raw/")
-
-		// Join the directory path and the request path (might be subdirectories)
 		fullPath := filepath.Join(dir, path)
 
-		// Check for directory traversal attacks
-		if strings.Contains(fullPath, "../") || strings.Contains(fullPath, "..\\") {
-			http.Error(w, "Bad path", http.StatusNotFound)
-			return_code = "404"
+		isSafe, err := isSafePath(dir, fullPath)
+		if err != nil || !isSafe {
+			http.Error(w, "Bad path", http.StatusForbidden)
+			return_code = "403"
 			log.Printf("[%s - %s] %s %s\n", r.Method, return_code, r.URL.Path, r.RemoteAddr)
 			return
 		}
 
-		// Check if the path exists and it's a file (not a directory)
 		fileInfo, err := os.Stat(fullPath)
 		if os.IsNotExist(err) || fileInfo.IsDir() {
 			http.Error(w, "File not found", http.StatusNotFound)
@@ -181,6 +193,7 @@ func rawHandler(dir string) http.HandlerFunc {
 			log.Printf("[%s - %s] %s %s\n", r.Method, return_code, r.URL.Path, r.RemoteAddr)
 			return
 		}
+
 		log.Printf("[%s - %s] %s %s\n", r.Method, return_code, r.URL.Path, r.RemoteAddr)
 		http.ServeFile(w, r, fullPath)
 	}
@@ -202,20 +215,22 @@ func basicAuth(handler http.HandlerFunc, username, password []byte) http.Handler
 func fileHandler(w http.ResponseWriter, r *http.Request, dir string) {
 	log.Printf("[%s] %s %s\n", r.Method, r.URL.String(), r.RemoteAddr)
 	currentPath := r.URL.Query().Get("path")
-
 	if currentPath != "" {
 		decodedPath, err := base64.StdEncoding.DecodeString(currentPath)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		dir = filepath.Join(dir, string(decodedPath))
-		if isUnsafePath(dir) {
-			http.Error(w, "Bad path", http.StatusNotFound)
+		newdir := filepath.Join(dir, string(decodedPath))
+		isSafe, err := isSafePath(dir, newdir)
+		if err != nil || !isSafe {
+			http.Error(w, "Bad path", http.StatusForbidden)
+			log.Printf("[%s - %s] %s %s\n", r.Method, "403", r.URL.Path, r.RemoteAddr)
 			return
+		} else {
+			dir = newdir
 		}
 	}
-
 	if r.Method == http.MethodPost {
 		handlePostRequest(w, r, dir)
 	} else {
@@ -250,7 +265,7 @@ func handlePostRequest(w http.ResponseWriter, r *http.Request, dir string) {
 }
 
 func handleGetRequest(w http.ResponseWriter, r *http.Request, dir string, currentPath string) {
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		http.Error(w, "The path not exists", http.StatusInternalServerError)
 		return
@@ -273,7 +288,7 @@ func handleGetRequest(w http.ResponseWriter, r *http.Request, dir string, curren
 	fmt.Fprintf(w, statics.GetTemplates(table, backButton))
 }
 
-func createTable(files []os.FileInfo, dir string, currentPath string) (string, error) {
+func createTable(files []fs.DirEntry, dir string, currentPath string) (string, error) {
 	table := ""
 	for _, file := range files {
 		if file.Name()[0] == '.' {
@@ -296,9 +311,11 @@ func createTable(files []os.FileInfo, dir string, currentPath string) (string, e
 	return table, nil
 }
 
-func createFolderRow(file os.FileInfo, currentPath string) string {
+func createFolderRow(file fs.DirEntry, currentPath string) string {
 	encodedPath := createEncodedPath(currentPath, file.Name())
-	folderLink := fmt.Sprintf(`<a href="/?path=%s">%s</a>`, encodedPath, file.Name())
+	escapedencodedFilePath := html.EscapeString(encodedPath)
+
+	folderLink := fmt.Sprintf(`<a href="/?path=%s">%s</a>`, escapedencodedFilePath, file.Name())
 	return fmt.Sprintf(`
         <tr>
             <td>%s</td>
@@ -308,11 +325,17 @@ func createFolderRow(file os.FileInfo, currentPath string) string {
     `, folderLink)
 }
 
-func createFileRow(file os.FileInfo, currentPath string, fileInfo os.FileInfo) string {
+func createFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo) string {
 	encodedFilePath := createEncodedPath(currentPath, file.Name())
-	downloadLink := fmt.Sprintf(`<a class="btn" href="/download/?path=%s"><i class="fa fa-download"></i></a>`, encodedFilePath)
-	deleteLink := fmt.Sprintf(`<a class="btn" href="/delete/?path=%s"><i class="fa fa-trash"></i></a>`, encodedFilePath)
-	copyURLButton := fmt.Sprintf(`<button class="btn" onclick="copyToClipboard('%s', '%s')"><i class="fa fa-link"></i></button>`, currentPath, file.Name())
+
+	// Escapar nombres de archivos y rutas para su inserción segura en HTML
+	escapedFileName := html.EscapeString(file.Name())
+	escapedCurrentPath := html.EscapeString(currentPath)
+	escapedencodedFilePath := html.EscapeString(encodedFilePath)
+
+	downloadLink := fmt.Sprintf(`<a class="btn" href="/download/?path=%s"><i class="fa fa-download"></i></a>`, escapedencodedFilePath)
+	deleteLink := fmt.Sprintf(`<a class="btn" href="/delete/?path=%s"><i class="fa fa-trash"></i></a>`, escapedencodedFilePath)
+	copyURLButton := fmt.Sprintf(`<button class="btn" onclick="copyToClipboard('%s', '%s')"><i class="fa fa-link"></i></button>`, escapedCurrentPath, escapedFileName)
 	fileSize, units := formatFileSize(fileInfo.Size())
 	return fmt.Sprintf(`
         <tr>
@@ -320,7 +343,7 @@ func createFileRow(file os.FileInfo, currentPath string, fileInfo os.FileInfo) s
             <td>%.2f %s</td>
             <td><div style="display: flex;">%s%s%s</div></td>
         </tr>
-    `, file.Name(), fileSize, units, downloadLink, copyURLButton, deleteLink)
+    `, escapedFileName, fileSize, units, downloadLink, copyURLButton, deleteLink)
 }
 
 func createEncodedPath(currentPath string, fileName string) string {
