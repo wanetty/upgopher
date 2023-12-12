@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"crypto/subtle"
 	"encoding/base64"
 	"flag"
@@ -133,12 +134,30 @@ func main() {
 		http.Handle("/delete/", http.StripPrefix("/delete/", basicAuth(http.HandlerFunc(deleteHandler), userByte, passByte)))
 		http.Handle("/download/", http.StripPrefix("/download/", basicAuth(http.HandlerFunc(uploadHandler), userByte, passByte)))
 		http.Handle("/raw/", http.StripPrefix("/raw/", basicAuth(rawHandlerWithDir, userByte, passByte)))
+		http.HandleFunc("/zip", basicAuth(func(w http.ResponseWriter, r *http.Request) {
+			currentPath := r.URL.Query().Get("path")
+			err := ZipFiles("all_files.zip", *dir, currentPath)
+			if err != nil {
+				http.Error(w, "Unable to create zip file", http.StatusInternalServerError)
+				return
+			}
+			http.ServeFile(w, r, "all_files.zip")
+		}, userByte, passByte))
 
 	} else {
 		http.HandleFunc("/", fileHandlerWithDir)
 		http.Handle("/delete/", http.StripPrefix("/delete/", http.HandlerFunc(deleteHandler)))
 		http.Handle("/download/", http.StripPrefix("/download/", http.HandlerFunc(uploadHandler)))
 		http.Handle("/raw/", http.StripPrefix("/raw/", rawHandlerWithDir))
+		http.HandleFunc("/zip", func(w http.ResponseWriter, r *http.Request) {
+			currentPath := r.URL.Query().Get("path")
+			err := ZipFiles("all_files.zip", *dir, currentPath)
+			if err != nil {
+				http.Error(w, "Unable to create zip file", http.StatusInternalServerError)
+				return
+			}
+			http.ServeFile(w, r, "all_files.zip")
+		})
 
 	}
 
@@ -285,7 +304,8 @@ func handleGetRequest(w http.ResponseWriter, r *http.Request, dir string, curren
 		return
 	}
 	backButton := createBackButton(currentPath)
-	fmt.Fprintf(w, statics.GetTemplates(table, backButton))
+	downlaodButton := createZipButton(currentPath)
+	fmt.Fprintf(w, statics.GetTemplates(table, backButton, downlaodButton))
 }
 
 func createTable(files []fs.DirEntry, dir string, currentPath string) (string, error) {
@@ -309,6 +329,14 @@ func createTable(files []fs.DirEntry, dir string, currentPath string) (string, e
 		}
 	}
 	return table, nil
+}
+
+func createZipButton(currentPath string) string {
+	if currentPath != "" {
+		return `<a class="btn" href="/zip?path=` + currentPath + `">Download Zip</a>`
+	} else {
+		return `<a class="btn" href="/zip">Download Zip</a>`
+	}
 }
 
 func createFolderRow(file fs.DirEntry, currentPath string) string {
@@ -366,4 +394,44 @@ func createBackButton(currentPath string) string {
 		return `<button class="btn" onclick="window.location.href='/'" style="height: 50px;width: 50px;"><i class="fa fa-home"></i></button>`
 	}
 	return ""
+}
+func ZipFiles(filename, dir, currentPath string) error {
+	// Decodifica la ruta actual
+	decodedPath, _ := base64.StdEncoding.DecodeString(currentPath)
+	fullPath := filepath.Join(dir, string(decodedPath))
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	zipWriter := zip.NewWriter(file)
+	defer zipWriter.Close()
+
+	// Camina solo en el directorio actual
+	filepath.Walk(fullPath, func(path string, info os.FileInfo, err error) error {
+		if !info.IsDir() {
+			if err := addFileToZip(zipWriter, path); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	return nil
+}
+
+func addFileToZip(zipWriter *zip.Writer, filename string) error {
+	file, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	wr, err := zipWriter.Create(filename)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(wr, file)
+	return err
 }

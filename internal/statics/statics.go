@@ -4,12 +4,12 @@ import (
 	"fmt"
 )
 
-func GetTemplates(table string, backButton string) string {
+func GetTemplates(table string, backButton string, downloadButton string) string {
 	html := getHTML()
 	css := getCSS()
 	javascript := getJS()
 
-	result := fmt.Sprintf(html, css, table, backButton, javascript)
+	result := fmt.Sprintf(html, css, table, backButton, downloadButton, javascript)
 	return result
 }
 
@@ -213,8 +213,13 @@ func getHTML() string {
             <input type="file" name="file" id="file-upload"><input type="submit" class="btn" value="Upload">
         </form>
         
-        <div style="display: flex; justify-content: center; align-items: center; height: 100px;">
-            %s
+        <div style="display: flex; flex-direction: row; justify-content: center; align-items: center; height: 100px;">
+            <div style="display: flex; justify-content: center; align-items: center; height: 100px;">
+                %s
+            </div>
+            <div style="display: flex; justify-content: center; align-items: center; height: 100px;">
+                %s
+            </div>
         </div>
             %s
         </body>
