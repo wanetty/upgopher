@@ -136,12 +136,16 @@ func main() {
 		http.Handle("/raw/", http.StripPrefix("/raw/", basicAuth(rawHandlerWithDir, userByte, passByte)))
 		http.HandleFunc("/zip", basicAuth(func(w http.ResponseWriter, r *http.Request) {
 			currentPath := r.URL.Query().Get("path")
-			err := ZipFiles("all_files.zip", *dir, currentPath)
+			zipFilename, err := ZipFiles(*dir, currentPath)
 			if err != nil {
 				http.Error(w, "Unable to create zip file", http.StatusInternalServerError)
 				return
 			}
-			http.ServeFile(w, r, "all_files.zip")
+			defer os.Remove(zipFilename)
+			w.Header().Set("Content-Disposition", "attachment; filename=files.zip")
+			w.Header().Set("Content-Type", "application/zip")
+
+			http.ServeFile(w, r, zipFilename)
 		}, userByte, passByte))
 
 	} else {
@@ -151,12 +155,16 @@ func main() {
 		http.Handle("/raw/", http.StripPrefix("/raw/", rawHandlerWithDir))
 		http.HandleFunc("/zip", func(w http.ResponseWriter, r *http.Request) {
 			currentPath := r.URL.Query().Get("path")
-			err := ZipFiles("all_files.zip", *dir, currentPath)
+			zipFilename, err := ZipFiles(*dir, currentPath)
 			if err != nil {
 				http.Error(w, "Unable to create zip file", http.StatusInternalServerError)
 				return
 			}
-			http.ServeFile(w, r, "all_files.zip")
+			defer os.Remove(zipFilename)
+			w.Header().Set("Content-Disposition", "attachment; filename=files.zip")
+			w.Header().Set("Content-Type", "application/zip")
+
+			http.ServeFile(w, r, zipFilename)
 		})
 
 	}
@@ -395,21 +403,31 @@ func createBackButton(currentPath string) string {
 	}
 	return ""
 }
-func ZipFiles(filename, dir, currentPath string) error {
+func ZipFiles(dir, currentPath string) (string, error) {
 	// Decodifica la ruta actual
 	decodedPath, _ := base64.StdEncoding.DecodeString(currentPath)
 	fullPath := filepath.Join(dir, string(decodedPath))
-	file, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
 
-	zipWriter := zip.NewWriter(file)
+	// Crea archivo temporal para el ZIP
+	tempFile, err := os.CreateTemp(os.TempDir(), "prefix-*.zip")
+	if err != nil {
+		return "", err
+	}
+	filename := tempFile.Name()
+
+	// Defer para asegurar que el archivo temporal se elimine
+	defer func() {
+		tempFile.Close()
+	}()
+
+	zipWriter := zip.NewWriter(tempFile)
 	defer zipWriter.Close()
 
-	// Camina solo en el directorio actual
-	filepath.Walk(fullPath, func(path string, info os.FileInfo, err error) error {
+	// Agrega archivos al ZIP
+	err = filepath.Walk(fullPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		if !info.IsDir() {
 			if err := addFileToZip(zipWriter, path); err != nil {
 				return err
@@ -417,8 +435,11 @@ func ZipFiles(filename, dir, currentPath string) error {
 		}
 		return nil
 	})
+	if err != nil {
+		return "", err
+	}
 
-	return nil
+	return filename, nil
 }
 
 func addFileToZip(zipWriter *zip.Writer, filename string) error {
