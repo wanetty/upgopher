@@ -16,8 +16,25 @@ This project tries to replace all file servers that use python, since there are 
 * Basic authentication is available to restrict access to the server. To use it, set the -user and -pass flags with the desired username and password.
 * Traffic via HTTPS.
 * Possibility to browse through folders and upload files...
-## Usage
-To run the server locally:
+
+
+## Installation
+
+
+### Automatically
+
+Just run this command in your terminal with go installed.
+```bash
+go install github.com/wanetty/upgopher@latest
+```
+
+### Releases
+
+Go to the [releases](https://github.com/wanetty/upgopher/releases) section and get the one you need.
+
+### Manual
+
+Just build it yourself
 
 ```bash
 git clone https://github.com/wanetty/upgopher.git
@@ -25,7 +42,7 @@ cd upgopher
 go build 
 ```
 
-
+## Usage
 
 ### Help Output:
 
