@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"upgopher/internal/statics"
+	"github.com/wanetty/upgopher/internal/statics"
 )
 
 func main() {
