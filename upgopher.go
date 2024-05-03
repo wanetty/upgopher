@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"crypto/subtle"
+	"embed"
 	"encoding/base64"
 	"flag"
 	"fmt"
@@ -17,6 +18,9 @@ import (
 
 	"github.com/wanetty/upgopher/internal/statics"
 )
+
+//go:embed static/favicon.ico
+var favicon embed.FS
 
 func main() {
 	port := flag.Int("port", 9090, "port number")
@@ -134,6 +138,15 @@ func main() {
 		http.Handle("/delete/", http.StripPrefix("/delete/", basicAuth(http.HandlerFunc(deleteHandler), userByte, passByte)))
 		http.Handle("/download/", http.StripPrefix("/download/", basicAuth(http.HandlerFunc(uploadHandler), userByte, passByte)))
 		http.Handle("/raw/", http.StripPrefix("/raw/", basicAuth(rawHandlerWithDir, userByte, passByte)))
+		http.HandleFunc("/favicon.ico", basicAuth(func(w http.ResponseWriter, r *http.Request) {
+			faviconData, err := favicon.ReadFile("static/favicon.ico")
+			if err != nil {
+				http.Error(w, "Favicon not found", http.StatusNotFound)
+				return
+			}
+			w.Header().Set("Content-Type", "image/x-icon")
+			w.Write(faviconData)
+		}, userByte, passByte))
 		http.HandleFunc("/zip", basicAuth(func(w http.ResponseWriter, r *http.Request) {
 			currentPath := r.URL.Query().Get("path")
 			zipFilename, err := ZipFiles(*dir, currentPath)
@@ -153,6 +166,15 @@ func main() {
 		http.Handle("/delete/", http.StripPrefix("/delete/", http.HandlerFunc(deleteHandler)))
 		http.Handle("/download/", http.StripPrefix("/download/", http.HandlerFunc(uploadHandler)))
 		http.Handle("/raw/", http.StripPrefix("/raw/", rawHandlerWithDir))
+		http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+			faviconData, err := favicon.ReadFile("static/favicon.ico")
+			if err != nil {
+				http.Error(w, "Favicon not found", http.StatusNotFound)
+				return
+			}
+			w.Header().Set("Content-Type", "image/x-icon")
+			w.Write(faviconData)
+		})
 		http.HandleFunc("/zip", func(w http.ResponseWriter, r *http.Request) {
 			currentPath := r.URL.Query().Get("path")
 			zipFilename, err := ZipFiles(*dir, currentPath)
@@ -163,10 +185,8 @@ func main() {
 			defer os.Remove(zipFilename)
 			w.Header().Set("Content-Disposition", "attachment; filename=files.zip")
 			w.Header().Set("Content-Type", "application/zip")
-
 			http.ServeFile(w, r, zipFilename)
 		})
-
 	}
 
 	addr := fmt.Sprintf(":%d", *port)
