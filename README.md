@@ -41,6 +41,12 @@ git clone https://github.com/wanetty/upgopher.git
 cd upgopher
 go build 
 ```
+### Docker
+
+```bash
+podman build . -t upgopher
+podman run --name upgopher -p 9090:9090  upgopher
+```
 
 ## Usage
 
