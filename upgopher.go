@@ -191,6 +191,7 @@ func main() {
 
 	addr := fmt.Sprintf(":%d", *port)
 	log.Printf("Web server on %s", addr)
+	log.Printf("Executin version v1.5.1")
 
 	if *useTLS {
 		log.Printf("Usando TLS")
