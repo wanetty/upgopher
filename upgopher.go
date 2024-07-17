@@ -2,19 +2,28 @@ package main
 
 import (
 	"archive/zip"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/subtle"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"embed"
 	"encoding/base64"
+	"encoding/pem"
 	"flag"
 	"fmt"
 	"html"
 	"io"
 	"io/fs"
 	"log"
+	"math/big"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/wanetty/upgopher/internal/statics"
 )
@@ -22,204 +31,12 @@ import (
 //go:embed static/favicon.ico
 var favicon embed.FS
 
-func main() {
-	port := flag.Int("port", 9090, "port number")
-	dir := flag.String("dir", "./uploads", "directory path")
-	user := flag.String("user", "", "username for authentication")
-	pass := flag.String("pass", "", "password for authentication")
-	useTLS := flag.Bool("tls", false, "use HTTPS")
-	certFile := flag.String("cert", "", "HTTPS certificate")
-	keyFile := flag.String("key", "", "private key for HTTPS")
-	flag.Parse()
-
-	if _, err := os.Stat(*dir); os.IsNotExist(err) {
-		os.MkdirAll(*dir, 0755)
-	}
-
-	fileHandlerWithDir := func(w http.ResponseWriter, r *http.Request) {
-		fileHandler(w, r, *dir)
-	}
-
-	rawHandlerWithDir := rawHandler(*dir)
-
-	if *useTLS && (*certFile == "" || *keyFile == "") {
-		log.Fatalf("Must provide certificate and private key to use TLS")
-	}
-
-	if (*user != "" && *pass == "") || (*user == "" && *pass != "") {
-		log.Fatalf("If you use the username or password you have to use both.")
-		return
-	}
-
-	uploadHandler := func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("[%s] %s%s %s\n", r.Method, "/download/", r.URL.String(), r.RemoteAddr)
-
-		encodedFilePath := r.URL.Query().Get("path")
-
-		decodedFilePath, err := base64.StdEncoding.DecodeString(encodedFilePath)
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		fullFilePath := filepath.Join(*dir, string(decodedFilePath))
-
-		isSafe, err := isSafePath(*dir, fullFilePath)
-		if err != nil || !isSafe {
-			http.Error(w, "Bad path", http.StatusForbidden)
-			log.Printf("[%s - %s] %s %s\n", r.Method, "403", r.URL.Path, r.RemoteAddr)
-			return
-		}
-
-		if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
-			http.Error(w, "File not found", http.StatusNotFound)
-			return
-		}
-
-		// Extract filename from the full file path
-		_, filename := filepath.Split(fullFilePath)
-
-		// Set the 'Content-Disposition' header so the downloaded file has the original filename
-		w.Header().Set("Content-Disposition", "attachment; filename="+filename)
-
-		http.ServeFile(w, r, fullFilePath)
-	}
-
-	deleteHandler := func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("[%s] %s%s %s\n", r.Method, "/delete/", r.URL.String(), r.RemoteAddr)
-
-		encodedFilePath := r.URL.Query().Get("path")
-
-		decodedFilePath, err := base64.StdEncoding.DecodeString(encodedFilePath)
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		fullFilePath := filepath.Join(*dir, string(decodedFilePath))
-
-		isSafe, err := isSafePath(*dir, fullFilePath)
-		if err != nil || !isSafe {
-			http.Error(w, "Bad path", http.StatusForbidden)
-			log.Printf("[%s - %s] %s %s\n", r.Method, "403", r.URL.Path, r.RemoteAddr)
-			return
-		}
-
-		if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
-			http.Error(w, "File not found", http.StatusNotFound)
-			return
-		}
-
-		// Remove the file
-		err = os.Remove(fullFilePath)
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		if encodedFilePath == "" {
-			http.Redirect(w, r, "/", http.StatusSeeOther)
-
-		} else {
-			dirPath, _ := filepath.Split(string(decodedFilePath))
-			encodedDirPath := base64.StdEncoding.EncodeToString([]byte(dirPath))
-			http.Redirect(w, r, "/?path="+encodedDirPath, http.StatusSeeOther)
-		}
-
-	}
-
-	if *user != "" && *pass != "" {
-		userByte := []byte(*user)
-		passByte := []byte(*pass)
-		http.HandleFunc("/", basicAuth(fileHandlerWithDir, userByte, passByte))
-		http.Handle("/delete/", http.StripPrefix("/delete/", basicAuth(http.HandlerFunc(deleteHandler), userByte, passByte)))
-		http.Handle("/download/", http.StripPrefix("/download/", basicAuth(http.HandlerFunc(uploadHandler), userByte, passByte)))
-		http.Handle("/raw/", http.StripPrefix("/raw/", basicAuth(rawHandlerWithDir, userByte, passByte)))
-		http.HandleFunc("/favicon.ico", basicAuth(func(w http.ResponseWriter, r *http.Request) {
-			faviconData, err := favicon.ReadFile("static/favicon.ico")
-			if err != nil {
-				http.Error(w, "Favicon not found", http.StatusNotFound)
-				return
-			}
-			w.Header().Set("Content-Type", "image/x-icon")
-			w.Write(faviconData)
-		}, userByte, passByte))
-		http.HandleFunc("/zip", basicAuth(func(w http.ResponseWriter, r *http.Request) {
-			currentPath := r.URL.Query().Get("path")
-			zipFilename, err := ZipFiles(*dir, currentPath)
-			if err != nil {
-				http.Error(w, "Unable to create zip file", http.StatusInternalServerError)
-				return
-			}
-			defer os.Remove(zipFilename)
-			w.Header().Set("Content-Disposition", "attachment; filename=files.zip")
-			w.Header().Set("Content-Type", "application/zip")
-
-			http.ServeFile(w, r, zipFilename)
-		}, userByte, passByte))
-
-	} else {
-		http.HandleFunc("/", fileHandlerWithDir)
-		http.Handle("/delete/", http.StripPrefix("/delete/", http.HandlerFunc(deleteHandler)))
-		http.Handle("/download/", http.StripPrefix("/download/", http.HandlerFunc(uploadHandler)))
-		http.Handle("/raw/", http.StripPrefix("/raw/", rawHandlerWithDir))
-		http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
-			faviconData, err := favicon.ReadFile("static/favicon.ico")
-			if err != nil {
-				http.Error(w, "Favicon not found", http.StatusNotFound)
-				return
-			}
-			w.Header().Set("Content-Type", "image/x-icon")
-			w.Write(faviconData)
-		})
-		http.HandleFunc("/zip", func(w http.ResponseWriter, r *http.Request) {
-			currentPath := r.URL.Query().Get("path")
-			zipFilename, err := ZipFiles(*dir, currentPath)
-			if err != nil {
-				http.Error(w, "Unable to create zip file", http.StatusInternalServerError)
-				return
-			}
-			defer os.Remove(zipFilename)
-			w.Header().Set("Content-Disposition", "attachment; filename=files.zip")
-			w.Header().Set("Content-Type", "application/zip")
-			http.ServeFile(w, r, zipFilename)
-		})
-	}
-
-	addr := fmt.Sprintf(":%d", *port)
-	log.Printf("Web server on %s", addr)
-	log.Printf("Executin version v1.5.1")
-
-	if *useTLS {
-		log.Printf("Usando TLS")
-		if err := http.ListenAndServeTLS(addr, *certFile, *keyFile, nil); err != nil {
-			log.Fatalf("Error starting HTTPS server: %v", err)
-		}
-	} else {
-		log.Printf("Using HTTP")
-		if err := http.ListenAndServe(addr, nil); err != nil {
-			log.Fatalf("Error starting HTTP server: %v", err)
-		}
+// Handlers //////////////////////////////////////////////////
+func fileHandlerWithDir(dir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fileHandler(w, r, dir)
 	}
 }
-
-func isSafePath(baseDir, userPath string) (bool, error) {
-	absBaseDir, err := filepath.Abs(baseDir)
-	if err != nil {
-		return false, err
-	}
-
-	absUserPath, err := filepath.Abs(userPath)
-	if err != nil {
-		return false, err
-	}
-
-	return strings.HasPrefix(absUserPath, absBaseDir), nil
-}
-
 func rawHandler(dir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		return_code := "200"
@@ -245,6 +62,245 @@ func rawHandler(dir string) http.HandlerFunc {
 		log.Printf("[%s - %s] %s %s\n", r.Method, return_code, r.URL.Path, r.RemoteAddr)
 		http.ServeFile(w, r, fullPath)
 	}
+}
+
+func uploadHandler(dir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("[%s] %s%s %s\n", r.Method, "/download/", r.URL.String(), r.RemoteAddr)
+
+		encodedFilePath := r.URL.Query().Get("path")
+		decodedFilePath, err := base64.StdEncoding.DecodeString(encodedFilePath)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		fullFilePath := filepath.Join(dir, string(decodedFilePath))
+		isSafe, err := isSafePath(dir, fullFilePath)
+		if err != nil || !isSafe {
+			http.Error(w, "Bad path", http.StatusForbidden)
+			log.Printf("[%s - %s] %s %s\n", r.Method, "403", r.URL.Path, r.RemoteAddr)
+			return
+		}
+
+		if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
+
+		_, filename := filepath.Split(fullFilePath)
+		w.Header().Set("Content-Disposition", "attachment; filename="+filename)
+		http.ServeFile(w, r, fullFilePath)
+	}
+}
+
+func deleteHandler(dir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("[%s] %s%s %s\n", r.Method, "/delete/", r.URL.String(), r.RemoteAddr)
+
+		encodedFilePath := r.URL.Query().Get("path")
+		decodedFilePath, err := base64.StdEncoding.DecodeString(encodedFilePath)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		fullFilePath := filepath.Join(dir, string(decodedFilePath))
+		isSafe, err := isSafePath(dir, fullFilePath)
+		if err != nil || !isSafe {
+			http.Error(w, "Bad path", http.StatusForbidden)
+			log.Printf("[%s - %s] %s %s\n", r.Method, "403", r.URL.Path, r.RemoteAddr)
+			return
+		}
+
+		if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
+
+		err = os.Remove(fullFilePath)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if encodedFilePath == "" {
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+		} else {
+			dirPath, _ := filepath.Split(string(decodedFilePath))
+			encodedDirPath := base64.StdEncoding.EncodeToString([]byte(dirPath))
+			http.Redirect(w, r, "/?path="+encodedDirPath, http.StatusSeeOther)
+		}
+	}
+}
+
+func zipHandler(dir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		currentPath := r.URL.Query().Get("path")
+		zipFilename, err := ZipFiles(dir, currentPath)
+		if err != nil {
+			http.Error(w, "Unable to create zip file", http.StatusInternalServerError)
+			return
+		}
+		defer os.Remove(zipFilename)
+		w.Header().Set("Content-Disposition", "attachment; filename=files.zip")
+		w.Header().Set("Content-Type", "application/zip")
+		http.ServeFile(w, r, zipFilename)
+	}
+}
+
+func faviconHandler(w http.ResponseWriter, r *http.Request) {
+	faviconData, err := favicon.ReadFile("static/favicon.ico")
+	if err != nil {
+		http.Error(w, "Favicon not found", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "image/x-icon")
+	w.Write(faviconData)
+}
+
+func applyBasicAuth(handler http.HandlerFunc, user, pass string) http.HandlerFunc {
+	userByte := []byte(user)
+	passByte := []byte(pass)
+	return basicAuth(handler, userByte, passByte)
+}
+
+// Main /////////////////////////////////////////////////
+func main() {
+	port := flag.Int("port", 9090, "port number")
+	dir := flag.String("dir", "./uploads", "directory path")
+	user := flag.String("user", "", "username for authentication")
+	pass := flag.String("pass", "", "password for authentication")
+	useTLS := flag.Bool("ssl", false, "use HTTPS on port 443 by default. (If you don't put cert and key, it will generate a self-signed certificate)")
+	certFile := flag.String("cert", "", "HTTPS certificate")
+	keyFile := flag.String("key", "", "private key for HTTPS")
+	flag.Parse()
+	log.Printf("Executin version v1.6.0")
+
+	if _, err := os.Stat(*dir); os.IsNotExist(err) {
+		os.MkdirAll(*dir, 0755)
+	}
+
+	fileHandler := fileHandlerWithDir(*dir)
+	uploadHandler := uploadHandler(*dir)
+	deleteHandler := deleteHandler(*dir)
+	rawHandler := rawHandler(*dir)
+	zipHandler := zipHandler(*dir)
+
+	if (*user != "" && *pass == "") || (*user == "" && *pass != "") {
+		log.Fatalf("If you use the username or password you have to use both.")
+		return
+	}
+
+	if *user != "" && *pass != "" {
+		http.HandleFunc("/", applyBasicAuth(fileHandler, *user, *pass))
+		http.Handle("/delete/", http.StripPrefix("/delete/", applyBasicAuth(deleteHandler, *user, *pass)))
+		http.Handle("/download/", http.StripPrefix("/download/", applyBasicAuth(uploadHandler, *user, *pass)))
+		http.Handle("/raw/", http.StripPrefix("/raw/", applyBasicAuth(rawHandler, *user, *pass)))
+		http.HandleFunc("/favicon.ico", applyBasicAuth(faviconHandler, *user, *pass))
+		http.HandleFunc("/zip", applyBasicAuth(zipHandler, *user, *pass))
+	} else {
+		http.HandleFunc("/", fileHandler)
+		http.Handle("/delete/", http.StripPrefix("/delete/", deleteHandler))
+		http.Handle("/download/", http.StripPrefix("/download/", uploadHandler))
+		http.Handle("/raw/", http.StripPrefix("/raw/", rawHandler))
+		http.HandleFunc("/favicon.ico", faviconHandler)
+		http.HandleFunc("/zip", zipHandler)
+	}
+	if !isFlagPassed("port") && *useTLS {
+		*port = 443
+	}
+	addr := fmt.Sprintf(":%d", *port)
+	startServer(addr, *useTLS, *certFile, *keyFile, *port)
+}
+
+func startServer(addr string, useTLS bool, certFile, keyFile string, port int) {
+	if useTLS {
+		var cert tls.Certificate
+		var err error
+
+		if certFile != "" && keyFile != "" {
+			cert, err = tls.LoadX509KeyPair(certFile, keyFile)
+			if err != nil {
+				log.Fatalf("Failed to load certificate and key pair: %v", err)
+			}
+		} else {
+			log.Println("No certificate or key file provided, generating a self-signed certificate.")
+			certPEM, keyPEM, err := generateSelfSignedCert()
+			if err != nil {
+				log.Fatalf("Failed to generate self-signed certificate: %v", err)
+			}
+
+			cert, err = tls.X509KeyPair(certPEM, keyPEM)
+			if err != nil {
+				log.Fatalf("Failed to create key pair from generated self-signed certificate: %v", err)
+			}
+		}
+
+		server := &http.Server{
+			Addr: addr,
+			TLSConfig: &tls.Config{
+				Certificates: []tls.Certificate{cert},
+			},
+		}
+
+		log.Printf("Starting HTTPS server on %s", addr)
+		if err := server.ListenAndServeTLS("", ""); err != nil {
+			log.Fatalf("Error starting HTTPS server: %v", err)
+		}
+	} else {
+		log.Printf("Starting HTTP server on %s", addr)
+		if err := http.ListenAndServe(addr, nil); err != nil {
+			log.Fatalf("Error starting HTTP server: %v", err)
+		}
+	}
+}
+
+func generateSelfSignedCert() ([]byte, []byte, error) {
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			Organization: []string{"Self-signed"},
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	keyDER, err := x509.MarshalECPrivateKey(priv)
+	if err != nil {
+		return nil, nil, err
+	}
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+
+	return certPEM, keyPEM, nil
+}
+
+func isSafePath(baseDir, userPath string) (bool, error) {
+	absBaseDir, err := filepath.Abs(baseDir)
+	if err != nil {
+		return false, err
+	}
+
+	absUserPath, err := filepath.Abs(userPath)
+	if err != nil {
+		return false, err
+	}
+
+	return strings.HasPrefix(absUserPath, absBaseDir), nil
 }
 
 func basicAuth(handler http.HandlerFunc, username, password []byte) http.HandlerFunc {
@@ -476,4 +532,14 @@ func addFileToZip(zipWriter *zip.Writer, filename string) error {
 	}
 	_, err = io.Copy(wr, file)
 	return err
+}
+
+func isFlagPassed(name string) bool {
+	found := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			found = true
+		}
+	})
+	return found
 }

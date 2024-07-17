@@ -15,6 +15,7 @@ This project tries to replace all file servers that use python, since there are 
 * Users can view a list of the uploaded files by visiting the root URL
 * Basic authentication is available to restrict access to the server. To use it, set the -user and -pass flags with the desired username and password.
 * Traffic via HTTPS.
+* functionality: Generate a self-signed certificate by setting the -ssl flag.
 * Possibility to browse through folders and upload files...
 
 
@@ -56,17 +57,17 @@ podman run --name upgopher -p 9090:9090  upgopher
 ./upgopher -h
 Usage of ./upgopher:
   -cert string
-        certificado para HTTPS
+        HTTPS certificate
   -dir string
         directory path (default "./uploads")
   -key string
-        clave privada para HTTPS
+        private key for HTTPS
   -pass string
         password for authentication
   -port int
         port number (default 9090)
-  -tls
-        utilizar HTTPS
+  -ssl
+        use HTTPS on port 443 by default. (If you don't put cert and key, it will generate a self-signed certificate)
   -user string
         username for authentication
 ```
