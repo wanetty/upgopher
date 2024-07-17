@@ -15,7 +15,7 @@ This project tries to replace all file servers that use python, since there are 
 * Users can view a list of the uploaded files by visiting the root URL
 * Basic authentication is available to restrict access to the server. To use it, set the -user and -pass flags with the desired username and password.
 * Traffic via HTTPS.
-* functionality: Generate a self-signed certificate by setting the -ssl flag.
+* Generate a self-signed certificate by setting the -ssl flag.
 * Possibility to browse through folders and upload files...
 
 
