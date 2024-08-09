@@ -28,6 +28,8 @@ import (
 	"github.com/wanetty/upgopher/internal/statics"
 )
 
+var version = "1.6.3"
+
 //go:embed static/favicon.ico
 var favicon embed.FS
 
@@ -195,7 +197,7 @@ func main() {
 	quite = *quitearg
 
 	if !quite {
-		log.Printf("Executing version v1.6.1")
+		log.Printf("Executing version %s", version)
 	}
 
 	if _, err := os.Stat(*dir); os.IsNotExist(err) {
