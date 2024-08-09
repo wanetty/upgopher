@@ -31,6 +31,9 @@ import (
 //go:embed static/favicon.ico
 var favicon embed.FS
 
+// global var to quite mode
+var quite bool = false
+
 // Handlers //////////////////////////////////////////////////
 func fileHandlerWithDir(dir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +50,9 @@ func rawHandler(dir string) http.HandlerFunc {
 		if err != nil || !isSafe {
 			http.Error(w, "Bad path", http.StatusForbidden)
 			return_code = "403"
-			log.Printf("[%s - %s] %s %s\n", r.Method, return_code, r.URL.Path, r.RemoteAddr)
+			if !quite {
+				log.Printf("[%s - %s] %s %s\n", r.Method, return_code, r.URL.Path, r.RemoteAddr)
+			}
 			return
 		}
 
@@ -55,18 +60,23 @@ func rawHandler(dir string) http.HandlerFunc {
 		if os.IsNotExist(err) || fileInfo.IsDir() {
 			http.Error(w, "File not found", http.StatusNotFound)
 			return_code = "404"
-			log.Printf("[%s - %s] %s %s\n", r.Method, return_code, r.URL.Path, r.RemoteAddr)
+			if !quite {
+				log.Printf("[%s - %s] %s %s\n", r.Method, return_code, r.URL.Path, r.RemoteAddr)
+			}
 			return
 		}
-
-		log.Printf("[%s - %s] %s %s\n", r.Method, return_code, r.URL.Path, r.RemoteAddr)
+		if !quite {
+			log.Printf("[%s - %s] %s %s\n", r.Method, return_code, r.URL.Path, r.RemoteAddr)
+		}
 		http.ServeFile(w, r, fullPath)
 	}
 }
 
 func uploadHandler(dir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("[%s] %s%s %s\n", r.Method, "/download/", r.URL.String(), r.RemoteAddr)
+		if !quite {
+			log.Printf("[%s] %s%s %s\n", r.Method, "/download/", r.URL.String(), r.RemoteAddr)
+		}
 
 		encodedFilePath := r.URL.Query().Get("path")
 		decodedFilePath, err := base64.StdEncoding.DecodeString(encodedFilePath)
@@ -79,7 +89,9 @@ func uploadHandler(dir string) http.HandlerFunc {
 		isSafe, err := isSafePath(dir, fullFilePath)
 		if err != nil || !isSafe {
 			http.Error(w, "Bad path", http.StatusForbidden)
-			log.Printf("[%s - %s] %s %s\n", r.Method, "403", r.URL.Path, r.RemoteAddr)
+			if !quite {
+				log.Printf("[%s] %s%s %s\n", r.Method, "/download/", r.URL.String(), r.RemoteAddr)
+			}
 			return
 		}
 
@@ -96,7 +108,9 @@ func uploadHandler(dir string) http.HandlerFunc {
 
 func deleteHandler(dir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("[%s] %s%s %s\n", r.Method, "/delete/", r.URL.String(), r.RemoteAddr)
+		if !quite {
+			log.Printf("[%s] %s%s %s\n", r.Method, "/delete/", r.URL.String(), r.RemoteAddr)
+		}
 
 		encodedFilePath := r.URL.Query().Get("path")
 		decodedFilePath, err := base64.StdEncoding.DecodeString(encodedFilePath)
@@ -109,7 +123,9 @@ func deleteHandler(dir string) http.HandlerFunc {
 		isSafe, err := isSafePath(dir, fullFilePath)
 		if err != nil || !isSafe {
 			http.Error(w, "Bad path", http.StatusForbidden)
-			log.Printf("[%s - %s] %s %s\n", r.Method, "403", r.URL.Path, r.RemoteAddr)
+			if !quite {
+				log.Printf("[%s] %s%s %s\n", r.Method, "/delete/", r.URL.String(), r.RemoteAddr)
+			}
 			return
 		}
 
@@ -174,8 +190,13 @@ func main() {
 	useTLS := flag.Bool("ssl", false, "use HTTPS on port 443 by default. (If you don't put cert and key, it will generate a self-signed certificate)")
 	certFile := flag.String("cert", "", "HTTPS certificate")
 	keyFile := flag.String("key", "", "private key for HTTPS")
+	quitearg := flag.Bool("q", false, "quite mode")
 	flag.Parse()
-	log.Printf("Executin version v1.6.0")
+	quite = *quitearg
+
+	if !quite {
+		log.Printf("Executing version v1.6.1")
+	}
 
 	if _, err := os.Stat(*dir); os.IsNotExist(err) {
 		os.MkdirAll(*dir, 0755)
@@ -244,12 +265,16 @@ func startServer(addr string, useTLS bool, certFile, keyFile string, port int) {
 			},
 		}
 
-		log.Printf("Starting HTTPS server on %s", addr)
+		if !quite {
+			log.Printf("Starting HTTPS server on %s", addr)
+		}
 		if err := server.ListenAndServeTLS("", ""); err != nil {
 			log.Fatalf("Error starting HTTPS server: %v", err)
 		}
 	} else {
-		log.Printf("Starting HTTP server on %s", addr)
+		if !quite {
+			log.Printf("Starting HTTP server on %s", addr)
+		}
 		if err := http.ListenAndServe(addr, nil); err != nil {
 			log.Fatalf("Error starting HTTP server: %v", err)
 		}
@@ -317,7 +342,9 @@ func basicAuth(handler http.HandlerFunc, username, password []byte) http.Handler
 }
 
 func fileHandler(w http.ResponseWriter, r *http.Request, dir string) {
-	log.Printf("[%s] %s %s\n", r.Method, r.URL.String(), r.RemoteAddr)
+	if !quite {
+		log.Printf("[%s] %s %s\n", r.Method, r.URL.String(), r.RemoteAddr)
+	}
 	currentPath := r.URL.Query().Get("path")
 	if currentPath != "" {
 		decodedPath, err := base64.StdEncoding.DecodeString(currentPath)
@@ -329,7 +356,9 @@ func fileHandler(w http.ResponseWriter, r *http.Request, dir string) {
 		isSafe, err := isSafePath(dir, newdir)
 		if err != nil || !isSafe {
 			http.Error(w, "Bad path", http.StatusForbidden)
-			log.Printf("[%s - %s] %s %s\n", r.Method, "403", r.URL.Path, r.RemoteAddr)
+			if !quite {
+				log.Printf("[%s - %s] %s %s\n", r.Method, "403", r.URL.Path, r.RemoteAddr)
+			}
 			return
 		} else {
 			dir = newdir
