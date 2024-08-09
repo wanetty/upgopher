@@ -45,8 +45,8 @@ go build
 ### Docker
 
 ```bash
-podman build . -t upgopher
-podman run --name upgopher -p 9090:9090  upgopher
+docker build . -t upgopher
+docker run --name upgopher -p 9090:9090  upgopher
 ```
 
 ## Usage
@@ -70,6 +70,7 @@ Usage of ./upgopher:
         use HTTPS on port 443 by default. (If you don't put cert and key, it will generate a self-signed certificate)
   -user string
         username for authentication
+  -q    quite mode
 ```
 
 ## License
