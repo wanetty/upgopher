@@ -71,6 +71,7 @@ Usage of ./upgopher:
   -user string
         username for authentication
   -q    quite mode
+  -disable-hidden-files    disable showing hidden files
 ```
 
 ## License
