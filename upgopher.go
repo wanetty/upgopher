@@ -28,13 +28,17 @@ import (
 	"github.com/wanetty/upgopher/internal/statics"
 )
 
-var version = "1.6.3"
-
 //go:embed static/favicon.ico
 var favicon embed.FS
 
-// global var to quite mode
+//go:embed static/logopher.webp
+var logo embed.FS
+
+// global vars
 var quite bool = false
+var version = "1.6.3"
+var showHiddenFiles bool = false
+var disableHiddenFiles bool = false
 
 // Handlers //////////////////////////////////////////////////
 func fileHandlerWithDir(dir string) http.HandlerFunc {
@@ -167,6 +171,27 @@ func zipHandler(dir string) http.HandlerFunc {
 	}
 }
 
+func showHiddenFilesHandler(w http.ResponseWriter, r *http.Request) {
+	//if is http get request
+	if r.Method == http.MethodGet {
+		if showHiddenFiles {
+			fmt.Fprintf(w, "true")
+			return
+		} else {
+			fmt.Fprintf(w, "false")
+		}
+	} else if r.Method == http.MethodPost {
+		if disableHiddenFiles {
+			http.Error(w, "You can't change this setting", http.StatusForbidden)
+			return
+		} else {
+			showHiddenFiles = !showHiddenFiles
+			return
+		}
+	}
+
+}
+
 func faviconHandler(w http.ResponseWriter, r *http.Request) {
 	faviconData, err := favicon.ReadFile("static/favicon.ico")
 	if err != nil {
@@ -175,6 +200,16 @@ func faviconHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "image/x-icon")
 	w.Write(faviconData)
+}
+
+func logoHandler(w http.ResponseWriter, r *http.Request) {
+	logoData, err := logo.ReadFile("static/logopher.webp")
+	if err != nil {
+		http.Error(w, "Logo not found", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Write(logoData)
 }
 
 func applyBasicAuth(handler http.HandlerFunc, user, pass string) http.HandlerFunc {
@@ -193,6 +228,7 @@ func main() {
 	certFile := flag.String("cert", "", "HTTPS certificate")
 	keyFile := flag.String("key", "", "private key for HTTPS")
 	quitearg := flag.Bool("q", false, "quite mode")
+	disableHiddenFilesarg := flag.Bool("disable-hidden-files", false, "disable showing hidden files")
 	flag.Parse()
 	quite = *quitearg
 
@@ -214,6 +250,9 @@ func main() {
 		log.Fatalf("If you use the username or password you have to use both.")
 		return
 	}
+	if *disableHiddenFilesarg {
+		disableHiddenFiles = true
+	}
 
 	if *user != "" && *pass != "" {
 		http.HandleFunc("/", applyBasicAuth(fileHandler, *user, *pass))
@@ -221,14 +260,18 @@ func main() {
 		http.Handle("/download/", http.StripPrefix("/download/", applyBasicAuth(uploadHandler, *user, *pass)))
 		http.Handle("/raw/", http.StripPrefix("/raw/", applyBasicAuth(rawHandler, *user, *pass)))
 		http.HandleFunc("/favicon.ico", applyBasicAuth(faviconHandler, *user, *pass))
+		http.HandleFunc("/static/logopher.webp", applyBasicAuth(logoHandler, *user, *pass))
 		http.HandleFunc("/zip", applyBasicAuth(zipHandler, *user, *pass))
+		http.HandleFunc("/showhiddenfiles", applyBasicAuth(showHiddenFilesHandler, *user, *pass))
 	} else {
 		http.HandleFunc("/", fileHandler)
 		http.Handle("/delete/", http.StripPrefix("/delete/", deleteHandler))
 		http.Handle("/download/", http.StripPrefix("/download/", uploadHandler))
 		http.Handle("/raw/", http.StripPrefix("/raw/", rawHandler))
 		http.HandleFunc("/favicon.ico", faviconHandler)
+		http.HandleFunc("/static/logopher.webp", logoHandler)
 		http.HandleFunc("/zip", zipHandler)
+		http.HandleFunc("/showhiddenfiles", showHiddenFilesHandler)
 	}
 	if !isFlagPassed("port") && *useTLS {
 		*port = 443
@@ -402,15 +445,8 @@ func handlePostRequest(w http.ResponseWriter, r *http.Request, dir string) {
 func handleGetRequest(w http.ResponseWriter, r *http.Request, dir string, currentPath string) {
 	files, err := os.ReadDir(dir)
 	if err != nil {
-		http.Error(w, "The path not exists", http.StatusInternalServerError)
+		http.Error(w, "The path does not exists", http.StatusInternalServerError)
 		return
-	}
-
-	fileNames := make([]string, 0, len(files))
-	for _, file := range files {
-		if !file.IsDir() {
-			fileNames = append(fileNames, file.Name())
-		}
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -420,14 +456,14 @@ func handleGetRequest(w http.ResponseWriter, r *http.Request, dir string, curren
 		return
 	}
 	backButton := createBackButton(currentPath)
-	downlaodButton := createZipButton(currentPath)
-	fmt.Fprintf(w, statics.GetTemplates(table, backButton, downlaodButton))
+	downloadButton := createZipButton(currentPath)
+	fmt.Fprintf(w, statics.GetTemplates(table, backButton, downloadButton, disableHiddenFiles))
 }
 
 func createTable(files []fs.DirEntry, dir string, currentPath string) (string, error) {
 	table := ""
 	for _, file := range files {
-		if file.Name()[0] == '.' {
+		if file.Name()[0] == '.' && (!showHiddenFiles || disableHiddenFiles) {
 			continue
 		}
 
@@ -437,9 +473,8 @@ func createTable(files []fs.DirEntry, dir string, currentPath string) (string, e
 		if err != nil {
 			return "", err
 		}
-
 		if file.IsDir() {
-			table += createFolderRow(file, currentPath)
+			table += createFolderRow(file, currentPath, fileInfo)
 		} else {
 			table += createFileRow(file, currentPath, fileInfo)
 		}
@@ -455,7 +490,7 @@ func createZipButton(currentPath string) string {
 	}
 }
 
-func createFolderRow(file fs.DirEntry, currentPath string) string {
+func createFolderRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo) string {
 	encodedPath := createEncodedPath(currentPath, file.Name())
 	escapedencodedFilePath := html.EscapeString(encodedPath)
 
@@ -463,10 +498,11 @@ func createFolderRow(file fs.DirEntry, currentPath string) string {
 	return fmt.Sprintf(`
         <tr>
             <td>%s</td>
+			<td>%s</td>
             <td>-</td>
             <td class="tdspe">-</td>
         </tr>
-    `, folderLink)
+    `, folderLink, fileInfo.Mode())
 }
 
 func createFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo) string {
@@ -484,10 +520,11 @@ func createFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo) s
 	return fmt.Sprintf(`
         <tr>
             <td>%s</td>
+			<td>%s</td>
             <td>%.2f %s</td>
             <td><div style="display: flex;">%s%s%s</div></td>
         </tr>
-    `, escapedFileName, fileSize, units, downloadLink, copyURLButton, deleteLink)
+    `, escapedFileName, fileInfo.Mode(), fileSize, units, downloadLink, copyURLButton, deleteLink)
 }
 
 func createEncodedPath(currentPath string, fileName string) string {
@@ -507,7 +544,7 @@ func formatFileSize(size int64) (float64, string) {
 
 func createBackButton(currentPath string) string {
 	if currentPath != "" {
-		return `<button class="btn" onclick="window.location.href='/'" style="height: 50px;width: 50px;"><i class="fa fa-home"></i></button>`
+		return `<button class="btn" onclick="window.location.href='/'" style="height: 40px;width: 40px;"><i style="font-size: 20px;" class="fa fa-home"></i></button>`
 	}
 	return ""
 }
@@ -531,16 +568,35 @@ func ZipFiles(dir, currentPath string) (string, error) {
 	zipWriter := zip.NewWriter(tempFile)
 	defer zipWriter.Close()
 
-	// Agrega archivos al ZIP
+	// Agrega archivos y directorios al ZIP
 	err = filepath.Walk(fullPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
+			if os.IsPermission(err) {
+				return nil
+			}
 			return err
 		}
-		if !info.IsDir() {
-			if err := addFileToZip(zipWriter, path); err != nil {
+
+		// Ignora archivos ocultos si la opción está deshabilitada
+		if disableHiddenFiles && strings.HasPrefix(info.Name(), ".") {
+			return nil
+		}
+
+		// Añadir directorios al archivo ZIP
+		if info.IsDir() {
+			if err := addDirToZip(zipWriter, path, fullPath); err != nil {
+				return err
+			}
+			return nil
+		}
+
+		// Añadir archivos regulares
+		if info.Mode().IsRegular() {
+			if err := addFileToZip(zipWriter, path, fullPath); err != nil {
 				return err
 			}
 		}
+
 		return nil
 	})
 	if err != nil {
@@ -550,14 +606,33 @@ func ZipFiles(dir, currentPath string) (string, error) {
 	return filename, nil
 }
 
-func addFileToZip(zipWriter *zip.Writer, filename string) error {
-	file, err := os.Open(filename)
+func addDirToZip(zipWriter *zip.Writer, dirPath string, basePath string) error {
+	relPath, err := filepath.Rel(basePath, dirPath)
+	if err != nil {
+		return err
+	}
+
+	if !strings.HasSuffix(relPath, "/") {
+		relPath += "/"
+	}
+
+	_, err = zipWriter.Create(relPath)
+	return err
+}
+
+func addFileToZip(zipWriter *zip.Writer, filePath string, basePath string) error {
+	relPath, err := filepath.Rel(basePath, filePath)
+	if err != nil {
+		return err
+	}
+
+	file, err := os.Open(filePath)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	wr, err := zipWriter.Create(filename)
+	wr, err := zipWriter.Create(relPath)
 	if err != nil {
 		return err
 	}
