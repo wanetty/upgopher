@@ -36,7 +36,7 @@ var logo embed.FS
 
 // global vars
 var quite bool = false
-var version = "1.6.3"
+var version = "1.7.2"
 var showHiddenFiles bool = false
 var disableHiddenFiles bool = false
 
