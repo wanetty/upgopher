@@ -36,9 +36,16 @@ var logo embed.FS
 
 // global vars
 var quite bool = false
-var version = "1.7.2"
+var version = "1.8.0"
 var showHiddenFiles bool = false
 var disableHiddenFiles bool = false
+
+type CustomPath struct {
+	OriginalPath string
+	CustomPath   string
+}
+
+var customPaths = make(map[string]string) // map[originalPath]customPath
 
 // Handlers //////////////////////////////////////////////////
 func fileHandlerWithDir(dir string) http.HandlerFunc {
@@ -263,6 +270,8 @@ func main() {
 		http.HandleFunc("/static/logopher.webp", applyBasicAuth(logoHandler, *user, *pass))
 		http.HandleFunc("/zip", applyBasicAuth(zipHandler, *user, *pass))
 		http.HandleFunc("/showhiddenfiles", applyBasicAuth(showHiddenFilesHandler, *user, *pass))
+		http.HandleFunc("/custom-path", applyBasicAuth(createCustomPathHandler(*dir), *user, *pass))
+
 	} else {
 		http.HandleFunc("/", fileHandler)
 		http.Handle("/delete/", http.StripPrefix("/delete/", deleteHandler))
@@ -272,6 +281,8 @@ func main() {
 		http.HandleFunc("/static/logopher.webp", logoHandler)
 		http.HandleFunc("/zip", zipHandler)
 		http.HandleFunc("/showhiddenfiles", showHiddenFilesHandler)
+		http.HandleFunc("/custom-path", createCustomPathHandler(*dir))
+
 	}
 	if !isFlagPassed("port") && *useTLS {
 		*port = 443
@@ -390,6 +401,17 @@ func fileHandler(w http.ResponseWriter, r *http.Request, dir string) {
 	if !quite {
 		log.Printf("[%s] %s %s\n", r.Method, r.URL.String(), r.RemoteAddr)
 	}
+
+	// Verificar si es un custom path
+	requestPath := strings.TrimPrefix(r.URL.Path, "/")
+	for originalPath, customPath := range customPaths {
+		if customPath == requestPath {
+			encodedPath := base64.StdEncoding.EncodeToString([]byte(originalPath))
+			http.Redirect(w, r, "/download/?path="+encodedPath, http.StatusSeeOther)
+			return
+		}
+	}
+
 	currentPath := r.URL.Query().Get("path")
 	if currentPath != "" {
 		decodedPath, err := base64.StdEncoding.DecodeString(currentPath)
@@ -460,6 +482,44 @@ func handleGetRequest(w http.ResponseWriter, r *http.Request, dir string, curren
 	fmt.Fprintf(w, statics.GetTemplates(table, backButton, downloadButton, disableHiddenFiles))
 }
 
+func createCustomPathHandler(dir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" {
+			originalPath := r.FormValue("originalPath")
+			customPath := r.FormValue("customPath")
+
+			// Verificar si el custom path ya existe
+			for _, existingCustomPath := range customPaths {
+				if existingCustomPath == customPath {
+					http.Error(w, "Custom path already exists", http.StatusConflict)
+					return
+				}
+			}
+
+			// Validar paths
+			fullOriginalPath := filepath.Join(dir, originalPath)
+			isSafe, err := isSafePath(dir, fullOriginalPath)
+			if err != nil || !isSafe {
+				http.Error(w, "Invalid original path", http.StatusBadRequest)
+				return
+			}
+
+			// Asegurarse de que el archivo existe
+			if _, err := os.Stat(fullOriginalPath); os.IsNotExist(err) {
+				http.Error(w, "Original file does not exist", http.StatusBadRequest)
+				return
+			}
+
+			// Almacenar el custom path
+			customPaths[originalPath] = customPath
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
 func createTable(files []fs.DirEntry, dir string, currentPath string) (string, error) {
 	table := ""
 	for _, file := range files {
@@ -498,7 +558,8 @@ func createFolderRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo)
 	return fmt.Sprintf(`
         <tr>
             <td>%s</td>
-			<td>%s</td>
+            <td>%s</td>
+            <td>-</td>
             <td>-</td>
             <td class="tdspe">-</td>
         </tr>
@@ -508,23 +569,39 @@ func createFolderRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo)
 func createFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo) string {
 	encodedFilePath := createEncodedPath(currentPath, file.Name())
 
-	// Escapar nombres de archivos y rutas para su inserción segura en HTML
 	escapedFileName := html.EscapeString(file.Name())
-	escapedCurrentPath := html.EscapeString(currentPath)
 	escapedencodedFilePath := html.EscapeString(encodedFilePath)
+
+	//decodeamos path
+	decodedPath, _ := base64.StdEncoding.DecodeString(currentPath)
+
+	// Buscar custom path para este archivo
+	customPathDisplay := "-"
+	filePath := filepath.Join(string(decodedPath), file.Name())
+	customPath, exists := customPaths[filePath]
+	fmt.Println(currentPath)
+	if exists {
+		customPathDisplay = customPath
+	}
 
 	downloadLink := fmt.Sprintf(`<a class="btn" href="/download/?path=%s"><i class="fa fa-download"></i></a>`, escapedencodedFilePath)
 	deleteLink := fmt.Sprintf(`<a class="btn" href="/delete/?path=%s"><i class="fa fa-trash"></i></a>`, escapedencodedFilePath)
-	copyURLButton := fmt.Sprintf(`<button class="btn" onclick="copyToClipboard('%s', '%s')"><i class="fa fa-link"></i></button>`, escapedCurrentPath, escapedFileName)
+	copyURLButton := fmt.Sprintf(`<button class="btn" onclick="copyToClipboard('%s', '%s')"><i class="fa fa-link"></i></button>`, currentPath, escapedFileName)
+	customPathButton := fmt.Sprintf(`<button class="btn" onclick="showCustomPathForm('%s', '%s')"><i class="fa fa-magic"></i></button>`,
+		escapedFileName,
+		currentPath)
+
 	fileSize, units := formatFileSize(fileInfo.Size())
 	return fmt.Sprintf(`
         <tr>
             <td>%s</td>
-			<td>%s</td>
+            <td>%s</td>
             <td>%.2f %s</td>
-            <td><div style="display: flex;">%s%s%s</div></td>
+            <td>%s</td>
+            <td><div style="display: flex;">%s%s%s%s</div></td>
         </tr>
-    `, escapedFileName, fileInfo.Mode(), fileSize, units, downloadLink, copyURLButton, deleteLink)
+    `, escapedFileName, fileInfo.Mode(), fileSize, units, customPathDisplay,
+		downloadLink, copyURLButton, customPathButton, deleteLink)
 }
 
 func createEncodedPath(currentPath string, fileName string) string {

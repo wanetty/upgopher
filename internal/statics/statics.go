@@ -254,7 +254,121 @@ func getCSS() string {
             -webkit-transform: rotate(45deg);
             -ms-transform: rotate(45deg);
             transform: rotate(45deg);
-        } 
+        }
+       /* Estilos actualizados para el modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal {
+            background: #ffffff;
+            border-radius: 8px;
+            padding: 24px;
+            width: 90%;
+            max-width: 500px;
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin: 20px;
+        }
+
+        .modal-header {
+            margin-bottom: 24px;
+        }
+
+        .modal-title {
+            color: #333333;
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333333;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #e1e1e1;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #009879;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .btn-modal {
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: background-color 0.2s ease;
+        }
+
+        .btn-cancel {
+            background-color: #f5f5f5;
+            color: #333333;
+        }
+
+        .btn-cancel:hover {
+            background-color: #e5e5e5;
+        }
+
+        .btn-create {
+            background-color: #009879;
+            color: white;
+        }
+
+        .btn-create:hover {
+            background-color: #008568;
+        }
+
+        /* Animation */
+        @keyframes modalSlideIn {
+            from {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal {
+            animation: modalSlideIn 0.3s ease-out;
+        }
     </style>
     `
 	return cssCode
@@ -286,6 +400,7 @@ func getHTML() string {
                             Permissions
                         </th>
                         <th onclick="sortTable(2, 'number')">Size <i id="size-icon" class="fa"></i></th>
+                        <th onclick="sortTable(3)">Custom Path <i id="custom-path-icon" class="fa"></i></th>
                         <th>
                             Actions
                         </th>
@@ -296,14 +411,14 @@ func getHTML() string {
                 </tbody>
                 <tfoot>
                     <tr>
-                        <td colspan="4">
+                        <td colspan="5">
                             <div style="%s  justify-content: space-between; align-items: center;">
                                 <label class="checkbox-container" for="showAlertCheckbox">Show Hidden Files
                                     <input type="checkbox" id="showAlertCheckbox">
                                     <span class="checkmark"></span>
                                 </label>
                                 <div id="additional-footer-options">
-                                   
+                                
                                 </div>
                             </div>
                         </td>
@@ -331,6 +446,28 @@ func getHTML() string {
                     %s
                 </div>
             </div>
+            <!-- Modal para la creación de rutas personalizadas -->
+            <div id="customPathModal" class="modal-overlay">
+                <div class="modal">
+                    <div class="modal-header">
+                        <h2 class="modal-title">Create Custom Path</h2>
+                    </div>
+                    <form id="pathForm">
+                        <div class="form-group">
+                            <label for="originalPath">Original Path:</label>
+                            <input type="text" id="originalPath" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="customPath">Custom Path:</label>
+                            <input type="text" id="customPath" placeholder="Enter custom path" required>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn-modal btn-cancel" onclick="closeCustomPathModal()">Cancel</button>
+                            <button type="button" class="btn-modal btn-create" onclick="createCustomPath()">Create</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
             <script>
                 %s
             </script>
@@ -348,7 +485,6 @@ func getJS() string {
     document.addEventListener('DOMContentLoaded', function() {
         const checkbox = document.getElementById('showAlertCheckbox');
 
-        // Check the showHiddenFiles status
         fetch('/showhiddenfiles')
             .then(response => response.json())
             .then(data => {
@@ -376,26 +512,24 @@ func getJS() string {
     });
 
     function dropHandler(ev) {
-      ev.preventDefault();
-
-      if (ev.dataTransfer.items) {
-        [...ev.dataTransfer.items].forEach((item, i) => {
-          if (item.kind === "file") {
-            input.files = ev.dataTransfer.files;
-          }
-        });
-      } else {
-        [...ev.dataTransfer.files].forEach((file, i) => {
-          input.files = ev.dataTransfer.files;
-        });
-      }
+        ev.preventDefault();
+        if (ev.dataTransfer.items) {
+            [...ev.dataTransfer.items].forEach((item, i) => {
+                if (item.kind === "file") {
+                    input.files = ev.dataTransfer.files;
+                }
+            });
+        } else {
+            [...ev.dataTransfer.files].forEach((file, i) => {
+                input.files = ev.dataTransfer.files;
+            });
+        }
     }
 
     function dragOverHandler(ev) {
-      ev.preventDefault();
+        ev.preventDefault();
     }
 
-    // Copy URL to clipboard
     function copyToClipboard(pathBase64, fileName) {
         const decodedPath = atob(pathBase64);
         const baseUrl = window.location.origin;
@@ -403,7 +537,65 @@ func getJS() string {
         navigator.clipboard.writeText(urlWithParam);
     }
 
-    // Sorting functionality
+   function showCustomPathForm(fileName, currentPath) {
+        const originalPath = currentPath ? atob(currentPath) + "/" + fileName : fileName;
+        document.getElementById('originalPath').value = originalPath;
+        document.getElementById('customPath').value = '';
+        document.getElementById('customPathModal').style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeCustomPathModal() {
+        document.getElementById('customPathModal').style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
+
+    function createCustomPath() {
+        const originalPath = document.getElementById('originalPath').value;
+        const customPath = document.getElementById('customPath').value;
+
+        if (!customPath) {
+            alert('Please enter a custom path');
+            return;
+        }
+
+        fetch('/custom-path', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'originalPath=' + encodeURIComponent(originalPath) + '&customPath=' + encodeURIComponent(customPath)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Invalid path, already used or incompatible format');
+            }
+            return response.text();
+        })
+        .then(result => {
+            alert('Custom path created successfully!\nAccess your file at: ' + window.location.origin + '/' + customPath);
+            closeCustomPathModal();
+            window.location.reload();
+        })
+        .catch(error => {
+            alert('Error creating custom path: ' + error.message);
+        });
+    }
+
+    // Cerrar modal al hacer clic fuera de él
+    window.onclick = function(event) {
+        if (event.target == document.getElementById('customPathModal')) {
+            closeCustomPathModal();
+        }
+    }
+
+    // Cerrar modal con la tecla Escape
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            closeCustomPathModal();
+        }
+    });
+
     function sortTable(n, type = 'string') {
         const table = document.querySelector(".styled-table tbody");
         const rows = Array.from(table.rows);
@@ -426,14 +618,17 @@ func getJS() string {
             }
         });
 
-        // Remove existing rows and append sorted rows
         table.innerHTML = "";
         rows.forEach(row => table.appendChild(row));
 
-        // Update sort icons
-        document.querySelectorAll("th i").forEach(icon => icon.className = 'fa');  // Reset all icons
-        const icon = document.getElementById(n === 0 ? 'name-icon' : 'size-icon');
-        icon.className = "fa fa-sort-" + (sortOrder === 'asc' ? 'asc' : 'desc');
+       document.querySelectorAll("th i").forEach(icon => icon.className = 'fa');
+        const iconId = n === 0 ? 'name-icon' : 
+                    n === 2 ? 'size-icon' : 
+                    n === 3 ? 'custom-path-icon' : '';
+        if (iconId) {
+            const icon = document.getElementById(iconId);
+            icon.className = "fa fa-sort-" + (sortOrder === 'asc' ? 'asc' : 'desc');
+        }
     }
     `
 	return javascript
