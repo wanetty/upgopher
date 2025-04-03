@@ -13,6 +13,7 @@ func GetTemplates(table string, backButton string, downloadButton string, disabl
 		disabled = "display: none;"
 	}
 
+	// Importante: asegurarnos de que el JavaScript esté correctamente insertado antes de la etiqueta de cierre </body>
 	result := fmt.Sprintf(html, css, table, disabled, backButton, downloadButton, javascript)
 	return result
 }
@@ -391,6 +392,42 @@ func getHTML() string {
             <div>
                 <img class="center"  src="/static/logopher.webp">
             </div>
+
+            <!-- Componente de Clipboard Compartido rediseñado -->
+            <div id="shared-clipboard-container" style="margin: 30px auto; max-width: 850px; background: #fff; border-radius: 8px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); overflow: hidden;">
+                <!-- Cabecera con estilo moderno -->
+                <div style="background: linear-gradient(135deg, #009879 0%%, #00705a 100%%); padding: 18px 25px; color: white; display: flex; align-items: center;">
+                    <i class="fa fa-clipboard" style="font-size: 24px; margin-right: 12px;"></i>
+                    <h2 style="margin: 0; font-size: 20px; font-weight: 500;">Clipboard Compartido</h2>
+                </div>
+                
+                <!-- Contenedor principal con sombra interior -->
+                <div style="padding: 22px 25px; background-color: #f9f9f9; border-top: 1px solid rgba(0, 0, 0, 0.05);">
+                    <textarea id="shared-clipboard-textarea" placeholder="Pega aquí tu texto para compartirlo..." 
+                              style="width: 100%%; min-height: 120px; padding: 15px; border: 1px solid #ddd; border-radius: 6px; 
+                                     font-size: 15px; box-sizing: border-box; resize: vertical; transition: border-color 0.2s ease;
+                                     box-shadow: inset 0 1px 3px rgba(0,0,0,0.05); font-family: -apple-system, BlinkMacSystemFont, sans-serif;"></textarea>
+                    
+                    <!-- Botones con estilo mejorado -->
+                    <div style="display: flex; justify-content: flex-end; margin-top: 18px; gap: 12px;">
+                        <button id="copy-from-clipboard" class="btn" 
+                                style="padding: 10px 16px; background-color: #f0f0f0; color: #333; border: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; transition: background-color 0.2s;"
+                                onmouseover="this.style.backgroundColor='#e3e3e3'" 
+                                onmouseout="this.style.backgroundColor='#f0f0f0'"
+                                onclick="copyFromSharedClipboard()">
+                            <i class="fa fa-clipboard" style="margin-right: 8px;"></i> Copiar al portapapeles
+                        </button>
+                        <button id="save-to-clipboard" class="btn" 
+                                style="padding: 10px 16px; background-color: #009879; color: white; border: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; transition: background-color 0.2s;"
+                                onmouseover="this.style.backgroundColor='#00876c'" 
+                                onmouseout="this.style.backgroundColor='#009879'"
+                                onclick="saveToSharedClipboard()">
+                            <i class="fa fa-save" style="margin-right: 8px;"></i> Guardar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div>
             <table style="margin-top: 20px;" class="styled-table">
                 <thead>
@@ -446,6 +483,7 @@ func getHTML() string {
                     %s
                 </div>
             </div>
+
             <!-- Modal para la creación de rutas personalizadas -->
             <div id="customPathModal" class="modal-overlay">
                 <div class="modal">
@@ -468,7 +506,73 @@ func getHTML() string {
                     </form>
                 </div>
             </div>
+            
             <script>
+                // Define las funciones JavaScript para el clipboard
+                function saveToSharedClipboard() {
+                    const clipboardText = document.getElementById('shared-clipboard-textarea').value;
+                    console.log('Guardando en clipboard:', clipboardText);
+                    
+                    fetch('/clipboard', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'text/plain'
+                        },
+                        body: clipboardText
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Error al guardar en el clipboard compartido');
+                        }
+                        console.log('Clipboard guardado con éxito');
+                        alert('Texto guardado en el clipboard compartido con éxito');
+                    })
+                    .catch(error => {
+                        console.error('Error al guardar en clipboard:', error);
+                        alert('Error al guardar en el clipboard compartido: ' + error.message);
+                    });
+                }
+
+                function copyFromSharedClipboard() {
+                    const clipboardText = document.getElementById('shared-clipboard-textarea').value;
+                    
+                    if (!clipboardText) {
+                        alert('No hay texto para copiar');
+                        return;
+                    }
+                    
+                    navigator.clipboard.writeText(clipboardText)
+                        .then(() => {
+                            console.log('Texto copiado al portapapeles local');
+                            alert('Texto copiado al portapapeles local');
+                        })
+                        .catch(err => {
+                            console.error('Error al copiar texto: ', err);
+                            
+                            // Implementación alternativa para navegadores que no soportan navigator.clipboard
+                            try {
+                                const textArea = document.createElement('textarea');
+                                textArea.value = clipboardText;
+                                textArea.style.position = 'fixed';
+                                textArea.style.left = '-999999px';
+                                textArea.style.top = '-999999px';
+                                document.body.appendChild(textArea);
+                                textArea.focus();
+                                textArea.select();
+                                const successful = document.execCommand('copy');
+                                document.body.removeChild(textArea);
+                                
+                                if (successful) {
+                                    alert('Texto copiado al portapapeles local');
+                                } else {
+                                    alert('No se pudo copiar al portapapeles');
+                                }
+                            } catch (err) {
+                                alert('No se pudo copiar al portapapeles: ' + err.message);
+                            }
+                        });
+                }
+                
                 %s
             </script>
      </body>
@@ -484,7 +588,25 @@ func getJS() string {
 
     document.addEventListener('DOMContentLoaded', function() {
         const checkbox = document.getElementById('showAlertCheckbox');
+        const clipboardTextarea = document.getElementById('shared-clipboard-textarea');
 
+        // Cargar el contenido del clipboard compartido al cargar la página
+        fetch('/clipboard')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error al cargar el clipboard compartido');
+                }
+                return response.text();
+            })
+            .then(data => {
+                console.log('Clipboard cargado:', data);
+                clipboardTextarea.value = data;
+            })
+            .catch(error => {
+                console.error('Error al cargar el clipboard compartido:', error);
+            });
+
+        // Resto del código para el manejo de archivos ocultos
         fetch('/showhiddenfiles')
             .then(response => response.json())
             .then(data => {
@@ -511,6 +633,73 @@ func getJS() string {
         });
     });
 
+    // Función para guardar texto en el clipboard compartido
+    function saveToSharedClipboard() {
+        const clipboardText = document.getElementById('shared-clipboard-textarea').value;
+        console.log('Guardando en clipboard:', clipboardText);
+        
+        fetch('/clipboard', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'text/plain'
+            },
+            body: clipboardText
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Error al guardar en el clipboard compartido');
+            }
+            console.log('Clipboard guardado con éxito');
+            alert('Texto guardado en el clipboard compartido con éxito');
+        })
+        .catch(error => {
+            console.error('Error al guardar en clipboard:', error);
+            alert('Error al guardar en el clipboard compartido: ' + error.message);
+        });
+    }
+
+    // Función para copiar el texto del clipboard compartido al portapapeles local
+    function copyFromSharedClipboard() {
+        const clipboardText = document.getElementById('shared-clipboard-textarea').value;
+        
+        if (!clipboardText) {
+            alert('No hay texto para copiar');
+            return;
+        }
+        
+        navigator.clipboard.writeText(clipboardText)
+            .then(() => {
+                console.log('Texto copiado al portapapeles local');
+                alert('Texto copiado al portapapeles local');
+            })
+            .catch(err => {
+                console.error('Error al copiar texto: ', err);
+                
+                // Implementación alternativa para navegadores que no soportan navigator.clipboard
+                try {
+                    const textArea = document.createElement('textarea');
+                    textArea.value = clipboardText;
+                    textArea.style.position = 'fixed';
+                    textArea.style.left = '-999999px';
+                    textArea.style.top = '-999999px';
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    const successful = document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    
+                    if (successful) {
+                        alert('Texto copiado al portapapeles local');
+                    } else {
+                        alert('No se pudo copiar al portapapeles');
+                    }
+                } catch (err) {
+                    alert('No se pudo copiar al portapapeles: ' + err.message);
+                }
+            });
+    }
+
+    // Resto de funciones...
     function dropHandler(ev) {
         ev.preventDefault();
         if (ev.dataTransfer.items) {
@@ -533,7 +722,25 @@ func getJS() string {
     function copyToClipboard(pathBase64, fileName) {
         const decodedPath = atob(pathBase64);
         const baseUrl = window.location.origin;
-        const urlWithParam = baseUrl + "/raw/" + decodedPath + "/"+ fileName;
+        
+        // Creamos una ruta limpia sin barras duplicadas
+        let path = decodedPath;
+        
+        // Eliminamos barras iniciales en decodedPath si existen
+        while (path.startsWith('/')) {
+            path = path.substring(1);
+        }
+        
+        // Aseguramos la barra entre path y fileName
+        if (path) {
+            path = path.endsWith('/') ? path + fileName : path + '/' + fileName;
+        } else {
+            path = fileName;
+        }
+        
+        // Creamos la URL final asegurándonos de que solo haya una barra después de /raw/
+        const urlWithParam = baseUrl + "/raw/" + path;
+        
         navigator.clipboard.writeText(urlWithParam);
     }
 

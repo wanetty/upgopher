@@ -36,9 +36,10 @@ var logo embed.FS
 
 // global vars
 var quite bool = false
-var version = "1.8.0"
+var version = "1.9.0"
 var showHiddenFiles bool = false
 var disableHiddenFiles bool = false
+var sharedClipboard string = ""
 
 type CustomPath struct {
 	OriginalPath string
@@ -225,6 +226,50 @@ func applyBasicAuth(handler http.HandlerFunc, user, pass string) http.HandlerFun
 	return basicAuth(handler, userByte, passByte)
 }
 
+// Manejador para obtener y actualizar el contenido del clipboard compartido
+func clipboardHandler(w http.ResponseWriter, r *http.Request) {
+	if !quite {
+		log.Printf("[%s] %s %s\n", r.Method, r.URL.String(), r.RemoteAddr)
+	}
+
+	// Configurar CORS para permitir requests desde cualquier origen
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+	// Manejar preflight OPTIONS request
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if r.Method == http.MethodGet {
+		// Devolver el contenido actual del clipboard
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		fmt.Fprintf(w, sharedClipboard)
+		if !quite {
+			log.Printf("Devolviendo clipboard: '%s'\n", sharedClipboard)
+		}
+	} else if r.Method == http.MethodPost {
+		// Actualizar el contenido del clipboard con los datos recibidos
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Error al leer los datos", http.StatusBadRequest)
+			log.Printf("Error al leer los datos del clipboard: %v\n", err)
+			return
+		}
+		defer r.Body.Close()
+
+		sharedClipboard = string(body)
+		w.WriteHeader(http.StatusOK)
+		if !quite {
+			log.Printf("Clipboard actualizado a: '%s'\n", sharedClipboard)
+		}
+	} else {
+		http.Error(w, "Método no permitido", http.StatusMethodNotAllowed)
+	}
+}
+
 // Main /////////////////////////////////////////////////
 func main() {
 	port := flag.Int("port", 9090, "port number")
@@ -271,6 +316,7 @@ func main() {
 		http.HandleFunc("/zip", applyBasicAuth(zipHandler, *user, *pass))
 		http.HandleFunc("/showhiddenfiles", applyBasicAuth(showHiddenFilesHandler, *user, *pass))
 		http.HandleFunc("/custom-path", applyBasicAuth(createCustomPathHandler(*dir), *user, *pass))
+		http.HandleFunc("/clipboard", applyBasicAuth(clipboardHandler, *user, *pass))
 
 	} else {
 		http.HandleFunc("/", fileHandler)
@@ -282,6 +328,7 @@ func main() {
 		http.HandleFunc("/zip", zipHandler)
 		http.HandleFunc("/showhiddenfiles", showHiddenFilesHandler)
 		http.HandleFunc("/custom-path", createCustomPathHandler(*dir))
+		http.HandleFunc("/clipboard", clipboardHandler)
 
 	}
 	if !isFlagPassed("port") && *useTLS {
