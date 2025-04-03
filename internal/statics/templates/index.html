@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>File Manager</title>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+        <style>
+            {{ .CSS }}
+            
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div>
+                <img class="center" src="/static/logopher.webp" alt="Logo">
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="tabs">
+                <button class="tab-link active" onclick="openTab(event, 'files-tab')">
+                    <i class="fa fa-file-o"></i> Files
+                </button>
+                <button class="tab-link" onclick="openTab(event, 'clipboard-tab')">
+                    <i class="fa fa-clipboard"></i> Shared Clipboard
+                </button>
+            </div>
+
+            <!-- Files Tab Content -->
+            <div id="files-tab" class="tab-content active">
+                <div>
+                    <table class="styled-table">
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable(0)">Name <i id="name-icon" class="fa"></i></th>
+                                <th>Permissions</th>
+                                <th onclick="sortTable(2, 'number')">Size <i id="size-icon" class="fa"></i></th>
+                                <th onclick="sortTable(3)">Custom Path <i id="custom-path-icon" class="fa"></i></th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fileTableBody">
+                            {{ .Table }}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="5">
+                                    <div style="{{ .HiddenDisplay }} justify-content: space-between; align-items: center;">
+                                        <label class="checkbox-container" for="showAlertCheckbox">
+                                            Show Hidden Files
+                                            <input type="checkbox" id="showAlertCheckbox">
+                                            <span class="checkmark"></span>
+                                        </label>
+                                        <div id="additional-footer-options"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div class="code-box">
+                    <div><span class="line-number">1</span>curl -X POST -F "file=@[/path/to/file]" http://[SERVER]:[PORT]/</div>
+                </div>
+
+                <div id="drop_zone" ondrop="dropHandler(event);" ondragover="dragOverHandler(event);">
+                    <h1>Upload a File</h1>
+                    <p>Drag and drop files here or use the form below</p>
+                </div>
+
+                <form method="POST" class="upload-form" enctype="multipart/form-data">
+                    <div class="file-input-wrapper">
+                        <input type="file" name="file" id="file-upload" onchange="updateFileName(this)">
+                        <label for="file-upload" class="file-input-label">Choose File</label>
+                    </div>
+                    <span id="file-name" class="file-name"></span>
+                    <input type="submit" class="btn" value="Upload">
+                </form>
+
+                <div class="footer-buttons">
+                    <div>
+                        {{ .BackButton }}
+                    </div>
+                    <div>
+                        {{ .DownloadButton }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Clipboard Tab Content -->
+            <div id="clipboard-tab" class="tab-content">
+                <div id="shared-clipboard-container">
+                    <div class="clipboard-header">
+                        <i class="fa fa-clipboard"></i>
+                        <h2>Shared Clipboard</h2>
+                    </div>
+                    
+                    <div class="clipboard-content">
+                        <textarea id="shared-clipboard-textarea" placeholder="Paste your text here to share it..."></textarea>
+                        
+                        <div class="clipboard-actions">
+                            <button id="copy-from-clipboard" class="btn btn-secondary" onclick="copyFromSharedClipboard()">
+                                <i class="fa fa-clipboard"></i> Copy to clipboard
+                            </button>
+                            <button id="save-to-clipboard" class="btn" onclick="saveToSharedClipboard()">
+                                <i class="fa fa-save"></i> Save
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for Custom Path Creation -->
+        <div id="customPathModal" class="modal-overlay">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2 class="modal-title">Create Custom Path</h2>
+                </div>
+                <form id="pathForm">
+                    <div class="form-group">
+                        <label for="originalPath">Original Path:</label>
+                        <input type="text" id="originalPath" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="customPath">Custom Path:</label>
+                        <input type="text" id="customPath" placeholder="Enter custom path" required>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-modal btn-cancel" onclick="closeCustomPathModal()">Cancel</button>
+                        <button type="button" class="btn-modal btn-create" onclick="createCustomPath()">Create</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <script>
+            {{ .JavaScript }}
+        </script>
+    </body>
+</html>

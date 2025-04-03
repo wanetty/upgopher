@@ -65,7 +65,7 @@ func rawHandler(dir string) http.HandlerFunc {
 			http.Error(w, "Bad path", http.StatusForbidden)
 			return_code = "403"
 			if !quite {
-				log.Printf("[%s - %s] %s %s\n", r.Method, return_code, r.URL.Path, r.RemoteAddr)
+				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, return_code, r.URL.Path, r.RemoteAddr)
 			}
 			return
 		}
@@ -75,12 +75,12 @@ func rawHandler(dir string) http.HandlerFunc {
 			http.Error(w, "File not found", http.StatusNotFound)
 			return_code = "404"
 			if !quite {
-				log.Printf("[%s - %s] %s %s\n", r.Method, return_code, r.URL.Path, r.RemoteAddr)
+				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, return_code, r.URL.Path, r.RemoteAddr)
 			}
 			return
 		}
 		if !quite {
-			log.Printf("[%s - %s] %s %s\n", r.Method, return_code, r.URL.Path, r.RemoteAddr)
+			log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, return_code, r.URL.Path, r.RemoteAddr)
 		}
 		http.ServeFile(w, r, fullPath)
 	}
@@ -89,7 +89,7 @@ func rawHandler(dir string) http.HandlerFunc {
 func uploadHandler(dir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !quite {
-			log.Printf("[%s] %s%s %s\n", r.Method, "/download/", r.URL.String(), r.RemoteAddr)
+			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
 		}
 
 		encodedFilePath := r.URL.Query().Get("path")
@@ -104,13 +104,16 @@ func uploadHandler(dir string) http.HandlerFunc {
 		if err != nil || !isSafe {
 			http.Error(w, "Bad path", http.StatusForbidden)
 			if !quite {
-				log.Printf("[%s] %s%s %s\n", r.Method, "/download/", r.URL.String(), r.RemoteAddr)
+				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, "403", r.URL.Path, r.RemoteAddr)
 			}
 			return
 		}
 
 		if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
 			http.Error(w, "File not found", http.StatusNotFound)
+			if !quite {
+				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, "404", r.URL.Path, r.RemoteAddr)
+			}
 			return
 		}
 
@@ -123,13 +126,14 @@ func uploadHandler(dir string) http.HandlerFunc {
 func deleteHandler(dir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !quite {
-			log.Printf("[%s] %s%s %s\n", r.Method, "/delete/", r.URL.String(), r.RemoteAddr)
+			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
 		}
 
 		encodedFilePath := r.URL.Query().Get("path")
 		decodedFilePath, err := base64.StdEncoding.DecodeString(encodedFilePath)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Printf("[%s] Error decoding path: %v\n", time.Now().Format("2006-01-02 15:04:05"), err)
 			return
 		}
 
@@ -138,20 +142,28 @@ func deleteHandler(dir string) http.HandlerFunc {
 		if err != nil || !isSafe {
 			http.Error(w, "Bad path", http.StatusForbidden)
 			if !quite {
-				log.Printf("[%s] %s%s %s\n", r.Method, "/delete/", r.URL.String(), r.RemoteAddr)
+				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, "403", r.URL.Path, r.RemoteAddr)
 			}
 			return
 		}
 
 		if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
 			http.Error(w, "File not found", http.StatusNotFound)
+			if !quite {
+				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, "404", r.URL.Path, r.RemoteAddr)
+			}
 			return
 		}
 
 		err = os.Remove(fullFilePath)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Printf("[%s] Error removing file: %v\n", time.Now().Format("2006-01-02 15:04:05"), err)
 			return
+		}
+
+		if !quite {
+			log.Printf("[%s] File deleted: %s\n", time.Now().Format("2006-01-02 15:04:05"), fullFilePath)
 		}
 
 		if encodedFilePath == "" {
@@ -180,15 +192,22 @@ func zipHandler(dir string) http.HandlerFunc {
 }
 
 func showHiddenFilesHandler(w http.ResponseWriter, r *http.Request) {
-	//if is http get request
+	// Handle GET request - return current hidden files status
 	if r.Method == http.MethodGet {
+		if !quite {
+			log.Printf("[%s] Getting hidden files setting: %t\n", time.Now().Format("2006-01-02 15:04:05"), showHiddenFiles)
+		}
 		if showHiddenFiles {
-			fmt.Fprintf(w, "true")
+			w.Write([]byte("true"))
 			return
 		} else {
-			fmt.Fprintf(w, "false")
+			w.Write([]byte("false"))
 		}
 	} else if r.Method == http.MethodPost {
+		// Handle POST request - toggle hidden files setting
+		if !quite {
+			log.Printf("[%s] Toggling hidden files setting\n", time.Now().Format("2006-01-02 15:04:05"))
+		}
 		if disableHiddenFiles {
 			http.Error(w, "You can't change this setting", http.StatusForbidden)
 			return
@@ -197,7 +216,6 @@ func showHiddenFilesHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
 }
 
 func faviconHandler(w http.ResponseWriter, r *http.Request) {
@@ -226,36 +244,36 @@ func applyBasicAuth(handler http.HandlerFunc, user, pass string) http.HandlerFun
 	return basicAuth(handler, userByte, passByte)
 }
 
-// Manejador para obtener y actualizar el contenido del clipboard compartido
+// Clipboard handler to get and update shared clipboard content
 func clipboardHandler(w http.ResponseWriter, r *http.Request) {
 	if !quite {
-		log.Printf("[%s] %s %s\n", r.Method, r.URL.String(), r.RemoteAddr)
+		log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
 	}
 
-	// Configurar CORS para permitir requests desde cualquier origen
+	// Set CORS headers to allow requests from any origin
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
-	// Manejar preflight OPTIONS request
+	// Handle preflight OPTIONS request
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 
 	if r.Method == http.MethodGet {
-		// Devolver el contenido actual del clipboard
+		// Return current clipboard content
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		fmt.Fprintf(w, sharedClipboard)
+		w.Write([]byte(sharedClipboard))
 		if !quite {
-			log.Printf("Devolviendo clipboard: '%s'\n", sharedClipboard)
+			log.Printf("[%s] Clipboard content returned: '%s'\n", time.Now().Format("2006-01-02 15:04:05"), sharedClipboard)
 		}
 	} else if r.Method == http.MethodPost {
-		// Actualizar el contenido del clipboard con los datos recibidos
+		// Update clipboard with received data
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			http.Error(w, "Error al leer los datos", http.StatusBadRequest)
-			log.Printf("Error al leer los datos del clipboard: %v\n", err)
+			http.Error(w, "Error reading data", http.StatusBadRequest)
+			log.Printf("[%s] Error reading clipboard data: %v\n", time.Now().Format("2006-01-02 15:04:05"), err)
 			return
 		}
 		defer r.Body.Close()
@@ -263,10 +281,10 @@ func clipboardHandler(w http.ResponseWriter, r *http.Request) {
 		sharedClipboard = string(body)
 		w.WriteHeader(http.StatusOK)
 		if !quite {
-			log.Printf("Clipboard actualizado a: '%s'\n", sharedClipboard)
+			log.Printf("[%s] Clipboard updated to: '%s'\n", time.Now().Format("2006-01-02 15:04:05"), sharedClipboard)
 		}
 	} else {
-		http.Error(w, "Método no permitido", http.StatusMethodNotAllowed)
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
@@ -338,7 +356,7 @@ func main() {
 	startServer(addr, *useTLS, *certFile, *keyFile, *port)
 }
 
-func startServer(addr string, useTLS bool, certFile, keyFile string, port int) {
+func startServer(addr string, useTLS bool, certFile, keyFile string, _ int) {
 	if useTLS {
 		var cert tls.Certificate
 		var err error
@@ -369,14 +387,14 @@ func startServer(addr string, useTLS bool, certFile, keyFile string, port int) {
 		}
 
 		if !quite {
-			log.Printf("Starting HTTPS server on %s", addr)
+			log.Printf("[%s] Starting HTTPS server on %s", time.Now().Format("2006-01-02 15:04:05"), addr)
 		}
 		if err := server.ListenAndServeTLS("", ""); err != nil {
 			log.Fatalf("Error starting HTTPS server: %v", err)
 		}
 	} else {
 		if !quite {
-			log.Printf("Starting HTTP server on %s", addr)
+			log.Printf("[%s] Starting HTTP server on %s", time.Now().Format("2006-01-02 15:04:05"), addr)
 		}
 		if err := http.ListenAndServe(addr, nil); err != nil {
 			log.Fatalf("Error starting HTTP server: %v", err)
@@ -446,10 +464,10 @@ func basicAuth(handler http.HandlerFunc, username, password []byte) http.Handler
 
 func fileHandler(w http.ResponseWriter, r *http.Request, dir string) {
 	if !quite {
-		log.Printf("[%s] %s %s\n", r.Method, r.URL.String(), r.RemoteAddr)
+		log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
 	}
 
-	// Verificar si es un custom path
+	// Check if it's a custom path
 	requestPath := strings.TrimPrefix(r.URL.Path, "/")
 	for originalPath, customPath := range customPaths {
 		if customPath == requestPath {
@@ -471,7 +489,7 @@ func fileHandler(w http.ResponseWriter, r *http.Request, dir string) {
 		if err != nil || !isSafe {
 			http.Error(w, "Bad path", http.StatusForbidden)
 			if !quite {
-				log.Printf("[%s - %s] %s %s\n", r.Method, "403", r.URL.Path, r.RemoteAddr)
+				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, "403", r.URL.Path, r.RemoteAddr)
 			}
 			return
 		} else {
@@ -511,7 +529,7 @@ func handlePostRequest(w http.ResponseWriter, r *http.Request, dir string) {
 	http.Redirect(w, r, r.URL.String(), http.StatusSeeOther)
 }
 
-func handleGetRequest(w http.ResponseWriter, r *http.Request, dir string, currentPath string) {
+func handleGetRequest(w http.ResponseWriter, _ *http.Request, dir string, currentPath string) {
 	files, err := os.ReadDir(dir)
 	if err != nil {
 		http.Error(w, "The path does not exists", http.StatusInternalServerError)
@@ -526,7 +544,7 @@ func handleGetRequest(w http.ResponseWriter, r *http.Request, dir string, curren
 	}
 	backButton := createBackButton(currentPath)
 	downloadButton := createZipButton(currentPath)
-	fmt.Fprintf(w, statics.GetTemplates(table, backButton, downloadButton, disableHiddenFiles))
+	w.Write([]byte(statics.GetTemplates(table, backButton, downloadButton, disableHiddenFiles)))
 }
 
 func createCustomPathHandler(dir string) http.HandlerFunc {
@@ -591,9 +609,9 @@ func createTable(files []fs.DirEntry, dir string, currentPath string) (string, e
 
 func createZipButton(currentPath string) string {
 	if currentPath != "" {
-		return `<a class="btn" href="/zip?path=` + currentPath + `">Download Zip</a>`
+		return `<button class="btn" onclick="window.location.href='/zip?path=` + currentPath + `'"><i class="fa fa-download"></i> Download Zip</button>`
 	} else {
-		return `<a class="btn" href="/zip">Download Zip</a>`
+		return `<button class="btn" onclick="window.location.href='/zip'"><i class="fa fa-download"></i> Download Zip</button>`
 	}
 }
 
@@ -608,7 +626,11 @@ func createFolderRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo)
             <td>%s</td>
             <td>-</td>
             <td>-</td>
-            <td class="tdspe">-</td>
+            <td>
+                <div class="action-buttons">
+                    <span>-</span>
+                </div>
+            </td>
         </tr>
     `, folderLink, fileInfo.Mode())
 }
@@ -631,12 +653,11 @@ func createFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo) s
 		customPathDisplay = customPath
 	}
 
-	downloadLink := fmt.Sprintf(`<a class="btn" href="/download/?path=%s"><i class="fa fa-download"></i></a>`, escapedencodedFilePath)
-	deleteLink := fmt.Sprintf(`<a class="btn" href="/delete/?path=%s"><i class="fa fa-trash"></i></a>`, escapedencodedFilePath)
-	copyURLButton := fmt.Sprintf(`<button class="btn" onclick="copyToClipboard('%s', '%s')"><i class="fa fa-link"></i></button>`, currentPath, escapedFileName)
-	customPathButton := fmt.Sprintf(`<button class="btn" onclick="showCustomPathForm('%s', '%s')"><i class="fa fa-magic"></i></button>`,
-		escapedFileName,
-		currentPath)
+	// Usar action-buttons y los estilos de botones adecuados
+	downloadLink := fmt.Sprintf(`<button class="action-btn download" title="Download" onclick="window.location.href='/download/?path=%s'"><i class="fa fa-download"></i></button>`, escapedencodedFilePath)
+	deleteLink := fmt.Sprintf(`<button class="action-btn delete" title="Delete" onclick="window.location.href='/delete/?path=%s'"><i class="fa fa-trash"></i></button>`, escapedencodedFilePath)
+	copyURLButton := fmt.Sprintf(`<button class="action-btn link" title="Copy URL" onclick="copyToClipboard('%s', '%s')"><i class="fa fa-link"></i></button>`, currentPath, escapedFileName)
+	customPathButton := fmt.Sprintf(`<button class="action-btn edit" title="Create Custom Path" onclick="showCustomPathForm('%s', '%s')"><i class="fa fa-magic"></i></button>`, escapedFileName, currentPath)
 
 	fileSize, units := formatFileSize(fileInfo.Size())
 	return fmt.Sprintf(`
@@ -645,7 +666,11 @@ func createFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo) s
             <td>%s</td>
             <td>%.2f %s</td>
             <td>%s</td>
-            <td><div style="display: flex;">%s%s%s%s</div></td>
+            <td>
+                <div class="action-buttons">
+                    %s%s%s%s
+                </div>
+            </td>
         </tr>
     `, escapedFileName, fileInfo.Mode(), fileSize, units, customPathDisplay,
 		downloadLink, copyURLButton, customPathButton, deleteLink)
@@ -668,7 +693,7 @@ func formatFileSize(size int64) (float64, string) {
 
 func createBackButton(currentPath string) string {
 	if currentPath != "" {
-		return `<button class="btn" onclick="window.location.href='/'" style="height: 40px;width: 40px;"><i style="font-size: 20px;" class="fa fa-home"></i></button>`
+		return `<button class="btn" onclick="window.location.href='/'"><i class="fa fa-arrow-left"></i> Back</button>`
 	}
 	return ""
 }
