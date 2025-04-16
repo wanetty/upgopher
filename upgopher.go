@@ -36,7 +36,7 @@ var logo embed.FS
 
 // global vars
 var quite bool = false
-var version = "1.9.0"
+var version = "1.9.1"
 var showHiddenFiles bool = false
 var disableHiddenFiles bool = false
 var sharedClipboard string = ""
@@ -347,12 +347,12 @@ func main() {
 		http.HandleFunc("/showhiddenfiles", showHiddenFilesHandler)
 		http.HandleFunc("/custom-path", createCustomPathHandler(*dir))
 		http.HandleFunc("/clipboard", clipboardHandler)
-
 	}
+
 	if !isFlagPassed("port") && *useTLS {
 		*port = 443
 	}
-	addr := fmt.Sprintf(":%d", *port)
+	addr := fmt.Sprintf("0.0.0.0:%d", *port)
 	startServer(addr, *useTLS, *certFile, *keyFile, *port)
 }
 
@@ -453,7 +453,7 @@ func basicAuth(handler http.HandlerFunc, username, password []byte) http.Handler
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, pass, ok := r.BasicAuth()
 		if !ok || subtle.ConstantTimeCompare([]byte(user), username) != 1 || subtle.ConstantTimeCompare([]byte(pass), password) != 1 {
-			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+			w.Header().Set("WWW-Authenticate", `"Basic realm="Restricted"`)
 			w.WriteHeader(http.StatusUnauthorized)
 			w.Write([]byte("Unauthorized.\n"))
 			return

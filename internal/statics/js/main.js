@@ -67,6 +67,20 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error:', error);
         });
     });
+
+    // Añadir lógica para mostrar el nombre del archivo seleccionado
+    const fileInput = document.getElementById('file-upload'); // Corregido el ID
+    const fileNameDisplay = document.getElementById('file-name'); // Corregido el ID
+
+    if (fileInput && fileNameDisplay) {
+        fileInput.addEventListener('change', function() {
+            if (this.files && this.files.length > 0) {
+                fileNameDisplay.textContent = this.files[0].name;
+            } else {
+                fileNameDisplay.textContent = ''; // Limpiar si no hay archivo seleccionado
+            }
+        });
+    }
 });
 
 // Function to save text to shared clipboard
