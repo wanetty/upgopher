@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"bufio"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -11,6 +12,7 @@ import (
 	"crypto/x509/pkix"
 	"embed"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"flag"
 	"fmt"
@@ -20,8 +22,10 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -323,7 +327,6 @@ func main() {
 	if *disableHiddenFilesarg {
 		disableHiddenFiles = true
 	}
-
 	if *user != "" && *pass != "" {
 		http.HandleFunc("/", applyBasicAuth(fileHandler, *user, *pass))
 		http.Handle("/delete/", http.StripPrefix("/delete/", applyBasicAuth(deleteHandler, *user, *pass)))
@@ -335,7 +338,7 @@ func main() {
 		http.HandleFunc("/showhiddenfiles", applyBasicAuth(showHiddenFilesHandler, *user, *pass))
 		http.HandleFunc("/custom-path", applyBasicAuth(createCustomPathHandler(*dir), *user, *pass))
 		http.HandleFunc("/clipboard", applyBasicAuth(clipboardHandler, *user, *pass))
-
+		http.HandleFunc("/search-file", applyBasicAuth(searchFileHandler(*dir), *user, *pass))
 	} else {
 		http.HandleFunc("/", fileHandler)
 		http.Handle("/delete/", http.StripPrefix("/delete/", deleteHandler))
@@ -347,6 +350,7 @@ func main() {
 		http.HandleFunc("/showhiddenfiles", showHiddenFilesHandler)
 		http.HandleFunc("/custom-path", createCustomPathHandler(*dir))
 		http.HandleFunc("/clipboard", clipboardHandler)
+		http.HandleFunc("/search-file", searchFileHandler(*dir))
 	}
 
 	if !isFlagPassed("port") && *useTLS {
@@ -652,14 +656,22 @@ func createFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo) s
 	if exists {
 		customPathDisplay = customPath
 	}
+	// Determinar si el archivo es legible (texto)
+	isReadableFile := isTextFile(file.Name())
 
 	// Usar action-buttons y los estilos de botones adecuados
 	downloadLink := fmt.Sprintf(`<button class="action-btn download" title="Download" onclick="window.location.href='/download/?path=%s'"><i class="fa fa-download"></i></button>`, escapedencodedFilePath)
 	deleteLink := fmt.Sprintf(`<button class="action-btn delete" title="Delete" onclick="window.location.href='/delete/?path=%s'"><i class="fa fa-trash"></i></button>`, escapedencodedFilePath)
 	copyURLButton := fmt.Sprintf(`<button class="action-btn link" title="Copy URL" onclick="copyToClipboard('%s', '%s')"><i class="fa fa-link"></i></button>`, currentPath, escapedFileName)
 	customPathButton := fmt.Sprintf(`<button class="action-btn edit" title="Create Custom Path" onclick="showCustomPathForm('%s', '%s')"><i class="fa fa-magic"></i></button>`, escapedFileName, currentPath)
+	// Botón de búsqueda solo para archivos legibles
+	searchButton := ""
+	if isReadableFile {
+		searchButton = fmt.Sprintf(`<button class="action-btn search" title="Search in File" onclick="showSearchModal('%s', '%s')"><i class="fa fa-search"></i></button>`, escapedencodedFilePath, escapedFileName)
+	}
 
 	fileSize, units := formatFileSize(fileInfo.Size())
+
 	return fmt.Sprintf(`
         <tr>
             <td>%s</td>
@@ -668,12 +680,12 @@ func createFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo) s
             <td>%s</td>
             <td>
                 <div class="action-buttons">
-                    %s%s%s%s
+                    %s%s%s%s%s
                 </div>
             </td>
         </tr>
     `, escapedFileName, fileInfo.Mode(), fileSize, units, customPathDisplay,
-		downloadLink, copyURLButton, customPathButton, deleteLink)
+		downloadLink, copyURLButton, customPathButton, searchButton, deleteLink)
 }
 
 func createEncodedPath(currentPath string, fileName string) string {
@@ -797,4 +809,205 @@ func isFlagPassed(name string) bool {
 		}
 	})
 	return found
+}
+
+// isTextFile determina si un archivo es probablemente un archivo de texto legible
+func isTextFile(fileName string) bool {
+	ext := strings.ToLower(filepath.Ext(fileName))
+	// Lista de extensiones de archivo que se consideran legibles como texto
+	textExtensions := map[string]bool{
+		".txt": true, ".md": true, ".json": true, ".xml": true, ".html": true, ".css": true,
+		".js": true, ".go": true, ".py": true, ".java": true, ".c": true, ".cpp": true,
+		".h": true, ".swift": true, ".rb": true, ".php": true, ".sh": true, ".bat": true,
+		".log": true, ".csv": true, ".yml": true, ".yaml": true, ".toml": true, ".ini": true,
+		".cfg": true, ".conf": true, ".properties": true, ".env": true, ".sql": true,
+	}
+	return textExtensions[ext]
+}
+
+// searchInFile busca un término en un archivo y devuelve los resultados
+func searchInFile(filePath, searchTerm string, caseSensitive, wholeWord bool) ([]SearchResult, error) {
+
+	// Comprobar que el archivo existe antes de intentar abrirlo
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("the file does not exist: %s", filePath)
+	}
+
+	// Abrir el archivo
+	file, err := os.Open(filePath)
+	if err != nil {
+		log.Printf("Error to open file: %v", err)
+		return nil, err
+	}
+	defer file.Close()
+
+	// Crear un escáner para leer el archivo línea por línea
+	scanner := bufio.NewScanner(file)
+	lineNumber := 0
+	var results []SearchResult
+
+	// Preparar el término de búsqueda según las opciones
+	var searchFunc func(string) bool
+
+	if !caseSensitive {
+		searchTerm = strings.ToLower(searchTerm)
+	}
+
+	if wholeWord {
+		// Para búsqueda de palabra completa, usamos una expresión regular
+		var pattern string
+		if caseSensitive {
+			pattern = fmt.Sprintf(`\b%s\b`, regexp.QuoteMeta(searchTerm))
+		} else {
+			pattern = fmt.Sprintf(`(?i)\b%s\b`, regexp.QuoteMeta(searchTerm))
+		}
+
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			return nil, err
+		}
+
+		searchFunc = func(line string) bool {
+			return re.MatchString(line)
+		}
+	} else {
+		// Para búsqueda normal
+		searchFunc = func(line string) bool {
+			if caseSensitive {
+				return strings.Contains(line, searchTerm)
+			}
+			return strings.Contains(strings.ToLower(line), searchTerm)
+		}
+	}
+
+	// Leer el archivo línea por línea
+	for scanner.Scan() {
+		lineNumber++
+		line := scanner.Text()
+
+		// Verificar si la línea contiene el término de búsqueda
+		if searchFunc(line) {
+			// Limitar la longitud de la línea para evitar enviar demasiados datos
+			if len(line) > 300 {
+				line = line[:300] + "..."
+			}
+
+			results = append(results, SearchResult{
+				LineNumber: lineNumber,
+				Content:    line,
+			})
+
+			// Limitar el número total de resultados para evitar problemas de rendimiento
+			if len(results) >= 1000 {
+				results = append(results, SearchResult{
+					LineNumber: -1,
+					Content:    "Search results limited to 1000 matches.",
+				})
+				break
+			}
+		}
+	}
+	// Verificar errores de lectura
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	// Si no encontramos resultados, devolver un mensaje en lugar de un array vacío
+	if len(results) == 0 {
+		results = append(results, SearchResult{
+			LineNumber: -1,
+			Content:    "No matches found.",
+		})
+	}
+
+	return results, nil
+}
+
+// Resultado de búsqueda que se enviará al cliente
+type SearchResult struct {
+	LineNumber int    `json:"lineNumber"`
+	Content    string `json:"content"`
+}
+
+// searchFileHandler maneja las solicitudes de búsqueda en archivos
+func searchFileHandler(dir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Log más detallado para depuración
+		log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
+
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		// Obtener los parámetros de búsqueda
+		filePath := r.URL.Query().Get("path")
+		searchTerm := r.URL.Query().Get("term")
+		caseSensitive := r.URL.Query().Get("caseSensitive") == "true"
+		wholeWord := r.URL.Query().Get("wholeWord") == "true"
+
+		log.Printf("Búsqueda - Path: %s, Término: %s, CaseSensitive: %t, WholeWord: %t",
+			filePath, searchTerm, caseSensitive, wholeWord)
+
+		// Para evitar warnings de compilación mientras no usemos estos parámetros
+		_ = caseSensitive
+		_ = wholeWord
+
+		// Validar que tenemos los parámetros necesarios
+		if filePath == "" || searchTerm == "" {
+			http.Error(w, "Missing required parameters", http.StatusBadRequest)
+			return
+		}
+		decodedURL, err := url.QueryUnescape(filePath)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Invalid URL encoding: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		// Ahora decodificar desde base64
+		decodedFilePath, err := base64.StdEncoding.DecodeString(decodedURL)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Invalid base64 encoding: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		// Construir la ruta completa al archivo
+		fullPath := filepath.Join(dir, string(decodedFilePath))
+
+		// Verificar que la ruta es segura
+		isSafe, err := isSafePath(dir, fullPath)
+		if err != nil || !isSafe {
+			http.Error(w, "Bad path", http.StatusForbidden)
+			return
+		}
+		// Verificar que el archivo existe y se puede leer
+		fileInfo, err := os.Stat(fullPath)
+		if os.IsNotExist(err) {
+			log.Printf("File not found: %s", fullPath)
+			http.Error(w, fmt.Sprintf("File not found: %s", fullPath), http.StatusNotFound)
+			return
+		} else if err != nil {
+			log.Printf("Error accessing file: %v, path: %s", err, fullPath)
+			http.Error(w, fmt.Sprintf("Error accessing file: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Verificar que es un archivo regular (no un directorio)
+		if fileInfo.IsDir() {
+			http.Error(w, "Cannot search in directory", http.StatusBadRequest)
+			return
+		} // Implementación real de búsqueda en archivos
+		results, err := searchInFile(fullPath, searchTerm, caseSensitive, wholeWord)
+		if err != nil {
+			log.Printf("Error searching in file: %v", err)
+			http.Error(w, "Error searching in file", http.StatusInternalServerError)
+			return
+		}
+
+		// Configurar el encabezado de contenido JSON
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+
+		// Serializar y enviar la respuesta
+		json.NewEncoder(w).Encode(results)
+	}
 }

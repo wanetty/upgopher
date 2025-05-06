@@ -1,5 +1,26 @@
 var input = document.getElementById('file-upload');
 
+// Función para escapar HTML y prevenir XSS
+function escapeHtml(str) {
+    // Previene ataques XSS escapando caracteres especiales
+    if (str === null || str === undefined) {
+        return '';
+    }
+    
+    // Asegurarnos de que es string
+    str = String(str);
+    
+    // Escapar caracteres peligrosos
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;')
+        .replace(/\//g, '&#x2F;')
+        .replace(/\\/g, '&#x5C;')
+        .replace(/`/g, '&#96;');
+}
     
 // Tab functionality
 function openTab(evt, tabName) {
@@ -244,14 +265,250 @@ window.onclick = function(event) {
     if (event.target == document.getElementById('customPathModal')) {
         closeCustomPathModal();
     }
+    if (event.target == document.getElementById('searchModal')) {
+        closeSearchModal();
+    }
 }
 
 // Close modal with Escape key
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
         closeCustomPathModal();
+        closeSearchModal();
     }
 });
+
+// Search in file functionality
+let currentFilePath = '';
+
+function showSearchModal(filePath, fileName) {
+    // Validar los parámetros antes de usarlos
+    if (!filePath || typeof filePath !== 'string') {
+        console.error('Error: filePath inválido en showSearchModal');
+        return;
+    }
+    
+    // Validar que fileName sea una cadena
+    if (!fileName || typeof fileName !== 'string') {
+        fileName = 'archivo';
+        console.error('Error: fileName inválido en showSearchModal');
+    }
+    
+    // Guardar el path encodado tal cual viene
+    currentFilePath = filePath;
+    
+    // Asegurarse de que el nombre del archivo se muestra de forma segura
+    document.getElementById('searchFileName').textContent = escapeHtml(fileName);
+    
+    document.getElementById('searchTerm').value = '';
+    document.getElementById('searchResults').innerHTML = '<div class="placeholder-text">Enter a search term above to find matches</div>';
+    document.getElementById('resultCount').textContent = '(0)';
+    document.getElementById('searchModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    
+    const searchInput = document.getElementById('searchTerm');
+    
+    // Limpiar eventos previos para evitar duplicados
+    const newSearchInput = searchInput.cloneNode(true);
+    searchInput.parentNode.replaceChild(newSearchInput, searchInput);
+    
+    // Añadir evento de tecla Enter para iniciar la búsqueda
+    newSearchInput.addEventListener('keypress', function(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            searchInFile();
+        }
+    });
+    
+    setTimeout(() => newSearchInput.focus(), 100);
+    
+    // Para depuración - no usar decodeURIComponent aquí pues puede romper
+    // la codificación en base64
+    console.log('Path para búsqueda (no decodificado):', filePath);
+}
+
+function closeSearchModal() {
+    document.getElementById('searchModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
+    
+    // Limpiar variables para liberar memoria y evitar posibles fugas de seguridad
+    currentFilePath = '';
+    document.getElementById('searchTerm').value = '';
+    document.getElementById('searchResults').innerHTML = '';
+}
+
+function searchInFile() {
+    const searchTerm = document.getElementById('searchTerm').value;
+    const caseSensitive = document.getElementById('caseSensitive').checked;
+    const wholeWord = document.getElementById('wholeWord').checked;
+    
+    // Validar que tenemos un término de búsqueda
+    if (!searchTerm) {
+        document.getElementById('searchResults').innerHTML = '<div class="placeholder-text">Enter a search term above to find matches</div>';
+        document.getElementById('resultCount').textContent = '(0)';
+        return;
+    }
+    
+    // Validar que tenemos una ruta de archivo válida
+    if (!currentFilePath || typeof currentFilePath !== 'string') {
+        document.getElementById('searchResults').innerHTML = '<div class="error-message">Ruta de archivo inválida</div>';
+        document.getElementById('resultCount').textContent = '(0)';
+        console.error('Error: currentFilePath inválido en searchInFile');
+        return;
+    }
+    
+    // Validar el término de búsqueda (no permitir términos muy largos o peligrosos)
+    if (searchTerm.length > 1000) {
+        document.getElementById('searchResults').innerHTML = '<div class="error-message">El término de búsqueda es demasiado largo</div>';
+        document.getElementById('resultCount').textContent = '(0)';
+        return;
+    }
+    
+    // Mostrar indicador de carga
+    document.getElementById('searchResults').innerHTML = '<div class="loading-results">Searching...</div>';
+    
+    // Para la búsqueda, utilizamos el path tal cual lo recibimos sin ninguna codificación adicional
+    // Solo aplicamos encodeURIComponent al término de búsqueda y otros parámetros
+    const url = `/search-file?path=${encodeURIComponent(currentFilePath)}&term=${encodeURIComponent(searchTerm)}&caseSensitive=${encodeURIComponent(caseSensitive)}&wholeWord=${encodeURIComponent(wholeWord)}`;
+    
+    // Log extensivo para depuración
+    console.log('Ruta original para búsqueda:', currentFilePath);
+    
+    console.log('Enviando solicitud a:', url);
+    
+    // Establecer un tiempo de espera para la solicitud
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos timeout
+    
+    fetch(url, { signal: controller.signal })
+        .then(response => {
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+                console.error('Error HTTP:', response.status, response.statusText);
+                return response.text().then(text => {
+                    throw new Error(`Error en la búsqueda (${response.status}): ${text}`);
+                });
+            }
+            return response.json();
+        })
+        .then(results => {
+            // Verificar que los resultados tienen el formato esperado
+            if (!Array.isArray(results)) {
+                throw new Error('Formato de respuesta inválido');
+            }
+            
+            console.log('Resultados recibidos:', results);
+            displaySearchResults(searchTerm, results);
+        })
+        .catch(error => {
+            clearTimeout(timeoutId);
+            console.error('Error completo:', error);
+            
+            // Preparar un mensaje de error seguro (escapado)
+            const errorMsg = error.name === 'AbortError' 
+                ? 'La búsqueda tardó demasiado tiempo y se canceló'
+                : `Ha ocurrido un error durante la búsqueda: ${escapeHtml(error.message)}`;
+                
+            document.getElementById('searchResults').innerHTML = 
+                `<div class="error-message">${errorMsg}</div>`;
+            document.getElementById('resultCount').textContent = '(0)';
+        });
+}
+
+function displaySearchResults(searchTerm, results) {
+    const resultsContainer = document.getElementById('searchResults');
+    
+    if (results.length === 0) {
+        resultsContainer.innerHTML = '<div class="no-results">No matches found</div>';
+        document.getElementById('resultCount').textContent = '(0)';
+        return;
+    }
+    
+    // Verificar si hay un mensaje especial (lineNumber === -1)
+    if (results.length === 1 && results[0].lineNumber === -1) {
+        // Asegurar que el contenido esté siempre escapado para prevenir XSS
+        const safeContent = escapeHtml(results[0].content);
+        if (safeContent.includes("No se encontraron")) {
+            resultsContainer.innerHTML = '<div class="no-results">' + safeContent + '</div>';
+        } else {
+            resultsContainer.innerHTML = '<div class="info-message">' + safeContent + '</div>';
+        }
+        document.getElementById('resultCount').textContent = '(0)';
+        return;
+    }
+    
+    document.getElementById('resultCount').textContent = `(${results.length})`;
+    
+    // Crear HTML para los resultados
+    let htmlContent = '';
+    results.forEach(result => {
+        // Saltar mensajes especiales que pudieran estar al final
+        if (result.lineNumber === -1) {
+            // Asegurar que el contenido especial esté escapado
+            htmlContent += `<div class="info-message">${escapeHtml(result.content)}</div>`;
+            return;
+        }
+        
+        // Escapar el número de línea por seguridad (aunque debería ser un número)
+        const safeLineNumber = typeof result.lineNumber === 'number' ? 
+            result.lineNumber : escapeHtml(String(result.lineNumber));
+        
+        // Resaltar términos de búsqueda en el contenido (asegurándose que está escapado)
+        const highlightedContent = highlightSearchTerm(result.content, searchTerm);
+        
+        htmlContent += `
+            <div class="search-result-item">
+                <span class="result-line-number">${safeLineNumber}</span>
+                <div class="result-line-content">${highlightedContent}</div>
+            </div>
+        `;
+    });
+    
+    resultsContainer.innerHTML = htmlContent;
+}
+
+function highlightSearchTerm(text, term) {
+    // Validar parámetros
+    if (!text || typeof text !== 'string') {
+        console.error('Error: texto inválido en highlightSearchTerm');
+        return '';
+    }
+    
+    if (!term || typeof term !== 'string') {
+        console.error('Error: término de búsqueda inválido en highlightSearchTerm');
+        return escapeHtml(text);
+    }
+    
+    // Primero escapamos el texto para prevenir XSS
+    const safeText = escapeHtml(text);
+    
+    // Escape caracteres especiales en regex
+    const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    try {
+        const regex = new RegExp(`(${escapedTerm})`, 'gi');
+        return safeText.replace(regex, (match) => `<span class="result-match">${match}</span>`);
+    } catch (error) {
+        console.error('Error al resaltar texto:', error);
+        return safeText; // En caso de error, devolver el texto escapado
+    }
+}
+
+// En una implementación real, esta función haría una solicitud al servidor
+function fetchFileContent(filePath) {
+    return new Promise((resolve, reject) => {
+        fetch(`/file-content?path=${filePath}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error fetching file content');
+                }
+                return response.text();
+            })
+            .then(content => resolve(content))
+            .catch(error => reject(error));
+    });
+}
 
 function sortTable(n, type = 'string') {
     const table = document.querySelector(".styled-table tbody");

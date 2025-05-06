@@ -134,6 +134,53 @@
             </div>
         </div>
         
+        <!-- Modal for File Search -->
+        <div id="searchModal" class="modal-overlay">
+            <div class="modal search-modal">
+                <div class="modal-header">
+                    <h2 class="modal-title">Search in File: <span id="searchFileName"></span></h2>
+                </div>
+                <div class="search-form">
+                    <div class="search-input-container">
+                        <input type="text" id="searchTerm" placeholder="Enter search term..." autofocus>
+                        <button type="button" class="btn-search" onclick="searchInFile()" title="Search (or press Enter)">
+                            <i class="fa fa-search"></i> Search
+                        </button>
+                    </div>
+                    <div class="search-shortcuts">
+                        <small>Press <kbd>Enter</kbd> to search, <kbd>Esc</kbd> to close</small>
+                    </div>
+                    
+                    <div class="search-options">
+                        <label class="checkbox-container">
+                            Case Sensitive
+                            <input type="checkbox" id="caseSensitive">
+                            <span class="checkmark"></span>
+                        </label>
+                        <label class="checkbox-container">
+                            Whole Word
+                            <input type="checkbox" id="wholeWord">
+                            <span class="checkmark"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="search-results-container">
+                        <div class="search-results-header">
+                            <h3>Results <span id="resultCount">(0)</span></h3>
+                        </div>
+                        <div id="searchResults" class="search-results">
+                            <!-- Results will be populated here -->
+                            <div class="placeholder-text">Enter a search term above to find matches</div>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer">
+                        <button type="button" class="btn-modal btn-cancel" onclick="closeSearchModal()">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <script>
             {{ .JavaScript }}
         </script>
