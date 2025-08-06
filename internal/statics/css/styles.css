@@ -401,6 +401,99 @@ td a:hover {
     color: #666;
 }
 
+/* Progress Bar Styles */
+.progress-container {
+    margin: 20px auto;
+    width: 80%;
+    max-width: 745px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    animation: fadeIn 0.3s ease-in;
+}
+
+.progress-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+#upload-progress-text {
+    font-weight: 500;
+    color: #009879;
+    font-size: 16px;
+}
+
+#upload-progress-percentage {
+    font-weight: bold;
+    color: #009879;
+    font-size: 18px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 12px;
+    background-color: #e0e0e0;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 10px;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(135deg, #009879 0%, #00705a 100%);
+    width: 0%;
+    transition: width 0.3s ease;
+    border-radius: 6px;
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background-image: linear-gradient(
+        -45deg,
+        rgba(255, 255, 255, 0.2) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgba(255, 255, 255, 0.2) 50%,
+        rgba(255, 255, 255, 0.2) 75%,
+        transparent 75%,
+        transparent
+    );
+    background-size: 20px 20px;
+    animation: progressStripes 1s linear infinite;
+}
+
+@keyframes progressStripes {
+    0% {
+        background-position: 0 0;
+    }
+    100% {
+        background-position: 20px 0;
+    }
+}
+
+.progress-details {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+    color: #666;
+}
+
+#upload-speed, #upload-eta {
+    font-weight: 500;
+}
+
 /* Footer Buttons */
 .footer-buttons {
     display: flex;
@@ -776,5 +869,28 @@ td a:hover {
     .search-options {
         flex-direction: column;
         gap: 10px;
+    }
+
+    /* Progress Bar Responsive */
+    .progress-container {
+        width: 95%;
+        padding: 15px;
+    }
+
+    .progress-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+
+    .progress-details {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+
+    #upload-progress-text,
+    #upload-progress-percentage {
+        font-size: 14px;
     }
 }

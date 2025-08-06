@@ -68,14 +68,29 @@
                     <p>Drag and drop files here or use the form below</p>
                 </div>
 
-                <form method="POST" class="upload-form" enctype="multipart/form-data">
+                <form method="POST" class="upload-form" enctype="multipart/form-data" id="upload-form">
                     <div class="file-input-wrapper">
                         <input type="file" name="file" id="file-upload">
                         <label for="file-upload" class="file-input-label">Choose File</label>
                     </div>
                     <span id="file-name" class="file-name"></span>
-                    <input type="submit" class="btn" value="Upload">
+                    <input type="submit" class="btn" value="Upload" id="upload-btn">
                 </form>
+
+                <!-- Progress Bar Container -->
+                <div id="upload-progress-container" class="progress-container" style="display: none;">
+                    <div class="progress-info">
+                        <span id="upload-progress-text">Uploading...</span>
+                        <span id="upload-progress-percentage">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div id="upload-progress-fill" class="progress-fill"></div>
+                    </div>
+                    <div class="progress-details">
+                        <span id="upload-speed">0 KB/s</span>
+                        <span id="upload-eta">ETA: --</span>
+                    </div>
+                </div>
 
                 <div class="footer-buttons">
                     <div>

@@ -102,6 +102,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Initialize file upload with progress
+    setupFileUpload();
 });
 
 // Function to save text to shared clipboard
@@ -176,18 +179,99 @@ function dropHandler(ev) {
     if (ev.dataTransfer.items) {
         [...ev.dataTransfer.items].forEach((item, i) => {
             if (item.kind === "file") {
-                input.files = ev.dataTransfer.files;
+                const file = item.getAsFile();
+                if (file) {
+                    input.files = ev.dataTransfer.files;
+                    // Update file name display
+                    const fileNameDisplay = document.getElementById('file-name');
+                    if (fileNameDisplay) {
+                        fileNameDisplay.textContent = file.name;
+                    }
+                    // Trigger upload
+                    uploadFile(file);
+                }
             }
         });
     } else {
         [...ev.dataTransfer.files].forEach((file, i) => {
             input.files = ev.dataTransfer.files;
+            // Update file name display
+            const fileNameDisplay = document.getElementById('file-name');
+            if (fileNameDisplay && file) {
+                fileNameDisplay.textContent = file.name;
+            }
+            // Trigger upload
+            if (file) {
+                uploadFile(file);
+            }
         });
     }
 }
 
 function dragOverHandler(ev) {
     ev.preventDefault();
+}
+
+// Function to handle file upload (used by both form submit and drag & drop)
+function uploadFile(file) {
+    uploadTotalSize = file.size;
+    uploadStartTime = Date.now();
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    showUploadProgress();
+    
+    // Create XMLHttpRequest for progress tracking
+    const xhr = new XMLHttpRequest();
+    
+    // Upload progress event
+    xhr.upload.addEventListener('progress', function(e) {
+        if (e.lengthComputable) {
+            const percentage = (e.loaded / e.total) * 100;
+            updateUploadProgress(e.loaded, e.total, percentage);
+        }
+    });
+    
+    // Upload complete event
+    xhr.addEventListener('load', function() {
+        if (xhr.status === 200) {
+            updateUploadProgress(uploadTotalSize, uploadTotalSize, 100);
+            setTimeout(() => {
+                hideUploadProgress();
+                // Clear file input
+                const fileInput = document.getElementById('file-upload');
+                if (fileInput) {
+                    fileInput.value = '';
+                }
+                const fileNameDisplay = document.getElementById('file-name');
+                if (fileNameDisplay) {
+                    fileNameDisplay.textContent = '';
+                }
+                // Reload page to show new file
+                window.location.reload();
+            }, 1500);
+        } else {
+            hideUploadProgress();
+            alert('Error al subir el archivo: ' + xhr.statusText);
+        }
+    });
+    
+    // Upload error event
+    xhr.addEventListener('error', function() {
+        hideUploadProgress();
+        alert('Error al subir el archivo');
+    });
+    
+    // Upload abort event
+    xhr.addEventListener('abort', function() {
+        hideUploadProgress();
+        alert('Subida de archivo cancelada');
+    });
+    
+    // Send the request
+    xhr.open('POST', '/');
+    xhr.send(formData);
 }
 
 function copyToClipboard(pathBase64, fileName) {
@@ -543,4 +627,111 @@ function sortTable(n, type = 'string') {
         const icon = document.getElementById(iconId);
         icon.className = "fa fa-sort-" + (sortOrder === 'asc' ? 'asc' : 'desc');
     }
+}
+
+// Upload progress functionality
+let uploadStartTime = 0;
+let uploadTotalSize = 0;
+
+function showUploadProgress() {
+    const progressContainer = document.getElementById('upload-progress-container');
+    const uploadForm = document.getElementById('upload-form');
+    const uploadBtn = document.getElementById('upload-btn');
+    
+    progressContainer.style.display = 'block';
+    uploadBtn.disabled = true;
+    uploadBtn.value = 'Uploading...';
+    
+    // Reset progress
+    updateUploadProgress(0, 0, 0);
+}
+
+function hideUploadProgress() {
+    const progressContainer = document.getElementById('upload-progress-container');
+    const uploadBtn = document.getElementById('upload-btn');
+    
+    setTimeout(() => {
+        progressContainer.style.display = 'none';
+        uploadBtn.disabled = false;
+        uploadBtn.value = 'Upload';
+    }, 1000);
+}
+
+function updateUploadProgress(loaded, total, percentage) {
+    const progressFill = document.getElementById('upload-progress-fill');
+    const progressPercentage = document.getElementById('upload-progress-percentage');
+    const progressText = document.getElementById('upload-progress-text');
+    const uploadSpeed = document.getElementById('upload-speed');
+    const uploadEta = document.getElementById('upload-eta');
+    
+    // Update progress bar
+    progressFill.style.width = percentage + '%';
+    progressPercentage.textContent = Math.round(percentage) + '%';
+    
+    // Update progress text
+    if (percentage === 100) {
+        progressText.textContent = 'Upload completed!';
+    } else if (percentage > 0) {
+        progressText.textContent = 'Uploading...';
+    }
+    
+    // Calculate and display speed and ETA
+    if (loaded > 0 && uploadStartTime > 0) {
+        const elapsedTime = (Date.now() - uploadStartTime) / 1000; // in seconds
+        const speed = loaded / elapsedTime; // bytes per second
+        const remainingBytes = total - loaded;
+        const eta = remainingBytes / speed; // seconds
+        
+        // Format speed
+        if (speed > 1024 * 1024) {
+            uploadSpeed.textContent = (speed / (1024 * 1024)).toFixed(1) + ' MB/s';
+        } else if (speed > 1024) {
+            uploadSpeed.textContent = (speed / 1024).toFixed(1) + ' KB/s';
+        } else {
+            uploadSpeed.textContent = speed.toFixed(0) + ' B/s';
+        }
+        
+        // Format ETA
+        if (eta < 60) {
+            uploadEta.textContent = 'ETA: ' + Math.round(eta) + 's';
+        } else if (eta < 3600) {
+            uploadEta.textContent = 'ETA: ' + Math.round(eta / 60) + 'm';
+        } else {
+            uploadEta.textContent = 'ETA: ' + Math.round(eta / 3600) + 'h';
+        }
+    } else {
+        uploadSpeed.textContent = '0 KB/s';
+        uploadEta.textContent = 'ETA: --';
+    }
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + sizes[i];
+}
+
+// Enhanced file upload with progress
+function setupFileUpload() {
+    const uploadForm = document.getElementById('upload-form');
+    const fileInput = document.getElementById('file-upload');
+    
+    if (!uploadForm || !fileInput) {
+        console.error('Upload form or file input not found');
+        return;
+    }
+    
+    uploadForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const files = fileInput.files;
+        if (!files || files.length === 0) {
+            alert('Por favor selecciona un archivo');
+            return;
+        }
+        
+        const file = files[0];
+        uploadFile(file);
+    });
 }
