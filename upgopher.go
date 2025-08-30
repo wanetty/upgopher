@@ -623,20 +623,23 @@ func createFolderRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo)
 	encodedPath := createEncodedPath(currentPath, file.Name())
 	escapedencodedFilePath := html.EscapeString(encodedPath)
 
-	folderLink := fmt.Sprintf(`<a href="/?path=%s">%s</a>`, escapedencodedFilePath, file.Name())
+	escapedFolderName := html.EscapeString(file.Name())
+	folderLink := fmt.Sprintf(`<a href="/?path=%s">%s</a>`, escapedencodedFilePath, escapedFolderName)
+	lastModified := fileInfo.ModTime().Format("2006-01-02 15:04:05")
 	return fmt.Sprintf(`
-        <tr>
-            <td>%s</td>
-            <td>%s</td>
-            <td>-</td>
-            <td>-</td>
-            <td>
-                <div class="action-buttons">
-                    <span>-</span>
-                </div>
-            </td>
-        </tr>
-    `, folderLink, fileInfo.Mode())
+		<tr>
+			<td>%s</td>
+			<td>%s</td>
+			<td>-</td>
+			<td>%s</td>
+			<td>-</td>
+			<td>
+				<div class="action-buttons">
+					<span>-</span>
+				</div>
+			</td>
+		</tr>
+	`, folderLink, fileInfo.Mode(), lastModified)
 }
 
 func createFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo) string {
@@ -654,7 +657,7 @@ func createFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo) s
 	customPath, exists := customPaths[filePath]
 	fmt.Println(currentPath)
 	if exists {
-		customPathDisplay = customPath
+		customPathDisplay = html.EscapeString(customPath)
 	}
 	// Determinar si el archivo es legible (texto)
 	isReadableFile := isTextFile(file.Name())
@@ -671,20 +674,22 @@ func createFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo) s
 	}
 
 	fileSize, units := formatFileSize(fileInfo.Size())
+	lastModified := fileInfo.ModTime().Format("2006-01-02 15:04:05")
 
 	return fmt.Sprintf(`
-        <tr>
-            <td>%s</td>
-            <td>%s</td>
-            <td>%.2f %s</td>
-            <td>%s</td>
-            <td>
-                <div class="action-buttons">
-                    %s%s%s%s%s
-                </div>
-            </td>
-        </tr>
-    `, escapedFileName, fileInfo.Mode(), fileSize, units, customPathDisplay,
+		<tr>
+			<td>%s</td>
+			<td>%s</td>
+			<td>%.2f %s</td>
+			<td>%s</td>
+			<td>%s</td>
+			<td>
+				<div class="action-buttons">
+					%s%s%s%s%s
+				</div>
+			</td>
+		</tr>
+	`, escapedFileName, fileInfo.Mode(), fileSize, units, lastModified, customPathDisplay,
 		downloadLink, copyURLButton, customPathButton, searchButton, deleteLink)
 }
 

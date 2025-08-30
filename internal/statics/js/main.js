@@ -605,6 +605,19 @@ function sortTable(n, type = 'string') {
         const cellA = rowA.cells[n].innerText.trim();
         const cellB = rowB.cells[n].innerText.trim();
 
+        // Last Modified column (date sorting)
+        if (n === 3) {
+            // Try to parse as ISO date, fallback to string
+            const dateA = Date.parse(cellA);
+            const dateB = Date.parse(cellB);
+            if (!isNaN(dateA) && !isNaN(dateB)) {
+                return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+            }
+            // Fallback to string compare if not valid date
+            if (cellA < cellB) return sortOrder === 'asc' ? -1 : 1;
+            if (cellA > cellB) return sortOrder === 'asc' ? 1 : -1;
+            return 0;
+        }
         if (type === 'number') {
             const numA = parseFloat(cellA) || 0;
             const numB = parseFloat(cellB) || 0;
@@ -619,10 +632,11 @@ function sortTable(n, type = 'string') {
     table.innerHTML = "";
     rows.forEach(row => table.appendChild(row));
 
-   document.querySelectorAll("th i").forEach(icon => icon.className = 'fa');
-    const iconId = n === 0 ? 'name-icon' : 
-                n === 2 ? 'size-icon' : 
-                n === 3 ? 'custom-path-icon' : '';
+    document.querySelectorAll("th i").forEach(icon => icon.className = 'fa');
+    const iconId = n === 0 ? 'name-icon' :
+                    n === 2 ? 'size-icon' :
+                    n === 3 ? 'modified-icon' :
+                    n === 4 ? 'custom-path-icon' : '';
     if (iconId) {
         const icon = document.getElementById(iconId);
         icon.className = "fa fa-sort-" + (sortOrder === 'asc' ? 'asc' : 'desc');

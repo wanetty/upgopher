@@ -35,7 +35,8 @@
                                 <th onclick="sortTable(0)">Name <i id="name-icon" class="fa"></i></th>
                                 <th>Permissions</th>
                                 <th onclick="sortTable(2, 'number')">Size <i id="size-icon" class="fa"></i></th>
-                                <th onclick="sortTable(3)">Custom Path <i id="custom-path-icon" class="fa"></i></th>
+                                <th onclick="sortTable(3)">Last Modified <i id="modified-icon" class="fa"></i></th>
+                                <th onclick="sortTable(4)">Custom Path <i id="custom-path-icon" class="fa"></i></th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -44,7 +45,7 @@
                         </tbody>
                         <tfoot>
                             <tr>
-                                <td colspan="5">
+                                <td colspan="6">
                                     <div style="{{ .HiddenDisplay }} justify-content: space-between; align-items: center;">
                                         <label class="checkbox-container" for="showAlertCheckbox">
                                             Show Hidden Files

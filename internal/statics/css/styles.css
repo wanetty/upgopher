@@ -5,18 +5,12 @@ body {
     padding: 20px;
     color: #333;
 }
+
 .tab-content > div:first-child {
- .action-btn.download:hover {
-    color: #2980b9;
-}
-
-.action-btn.search:hover {
-    color: #3498db;
-}
-
-/* Button Styles */dth: 100%;
+    width: 100%;
     display: block;
 }
+
 .styled-table {
     width: 100%;
     margin: 0 auto;
@@ -191,6 +185,12 @@ body {
 
 .styled-table td {
     padding: 12px 20px;
+    /* Last Modified column: allow enough width for date/time */
+    &:nth-child(4) {
+        min-width: 140px;
+        max-width: 180px;
+        white-space: nowrap;
+    }
     text-align: center;
     border-bottom: 1px solid #dddddd;
 }
@@ -275,6 +275,10 @@ td a:hover {
 
 .action-btn.download:hover {
     color: #009879;
+}
+
+.action-btn.search:hover {
+    color: #3498db;
 }
 
 /* Button Styles */
