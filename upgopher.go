@@ -2,11 +2,9 @@ package main
 
 import (
 	"archive/zip"
-	"bufio"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -16,7 +14,6 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
-	"html"
 	"io"
 	"io/fs"
 	"log"
@@ -25,12 +22,14 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/wanetty/upgopher/internal/security"
 	"github.com/wanetty/upgopher/internal/statics"
+	"github.com/wanetty/upgopher/internal/templates"
+	"github.com/wanetty/upgopher/internal/utils"
 )
 
 //go:embed static/favicon.ico
@@ -54,9 +53,6 @@ type CustomPath struct {
 var customPaths = make(map[string]string) // map[originalPath]customPath
 var customPathsMutex sync.RWMutex         // protects customPaths from concurrent access
 
-// Rate limiting for clipboard endpoint
-var clipboardRateLimiter sync.Map // map[string][]time.Time - IP -> request timestamps
-
 // Handlers //////////////////////////////////////////////////
 func fileHandlerWithDir(dir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -69,7 +65,7 @@ func rawHandler(dir string) http.HandlerFunc {
 		path := strings.TrimPrefix(r.URL.Path, "/raw/")
 		fullPath := filepath.Join(dir, path)
 
-		isSafe, err := isSafePath(dir, fullPath)
+		isSafe, err := security.IsSafePath(dir, fullPath)
 		if err != nil || !isSafe {
 			http.Error(w, "Bad path", http.StatusForbidden)
 			return_code = "403"
@@ -109,7 +105,7 @@ func uploadHandler(dir string) http.HandlerFunc {
 		}
 
 		fullFilePath := filepath.Join(dir, string(decodedFilePath))
-		isSafe, err := isSafePath(dir, fullFilePath)
+		isSafe, err := security.IsSafePath(dir, fullFilePath)
 		if err != nil || !isSafe {
 			http.Error(w, "Bad path", http.StatusForbidden)
 			if !quite {
@@ -147,7 +143,7 @@ func deleteHandler(dir string) http.HandlerFunc {
 		}
 
 		fullFilePath := filepath.Join(dir, string(decodedFilePath))
-		isSafe, err := isSafePath(dir, fullFilePath)
+		isSafe, err := security.IsSafePath(dir, fullFilePath)
 		if err != nil || !isSafe {
 			http.Error(w, "Bad path", http.StatusForbidden)
 			if !quite {
@@ -257,41 +253,6 @@ func logoHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(logoData)
 }
 
-func applyBasicAuth(handler http.HandlerFunc, user, pass string) http.HandlerFunc {
-	userByte := []byte(user)
-	passByte := []byte(pass)
-	return basicAuth(handler, userByte, passByte)
-}
-
-// checkRateLimit checks if the IP has exceeded rate limit (20 requests per minute)
-func checkRateLimit(ip string) bool {
-	now := time.Now()
-	oneMinuteAgo := now.Add(-time.Minute)
-
-	// Get or create timestamp list for this IP
-	value, _ := clipboardRateLimiter.LoadOrStore(ip, []time.Time{})
-	timestamps := value.([]time.Time)
-
-	// Filter out timestamps older than 1 minute
-	var recentRequests []time.Time
-	for _, ts := range timestamps {
-		if ts.After(oneMinuteAgo) {
-			recentRequests = append(recentRequests, ts)
-		}
-	}
-
-	// Check if rate limit exceeded
-	if len(recentRequests) >= 20 {
-		return false // rate limit exceeded
-	}
-
-	// Add current request timestamp
-	recentRequests = append(recentRequests, now)
-	clipboardRateLimiter.Store(ip, recentRequests)
-
-	return true // request allowed
-}
-
 // Clipboard handler to get and update shared clipboard content
 func clipboardHandler(w http.ResponseWriter, r *http.Request) {
 	if !quite {
@@ -319,7 +280,7 @@ func clipboardHandler(w http.ResponseWriter, r *http.Request) {
 	} else if r.Method == http.MethodPost {
 		// Check rate limit before processing POST request
 		clientIP := r.RemoteAddr
-		if !checkRateLimit(clientIP) {
+		if !security.CheckRateLimit(clientIP) {
 			http.Error(w, "Rate limit exceeded. Maximum 20 requests per minute.", http.StatusTooManyRequests)
 			if !quite {
 				log.Printf("[%s] Rate limit exceeded for IP: %s\n", time.Now().Format("2006-01-02 15:04:05"), clientIP)
@@ -382,17 +343,17 @@ func main() {
 		disableHiddenFiles = true
 	}
 	if *user != "" && *pass != "" {
-		http.HandleFunc("/", applyBasicAuth(fileHandler, *user, *pass))
-		http.Handle("/delete/", http.StripPrefix("/delete/", applyBasicAuth(deleteHandler, *user, *pass)))
-		http.Handle("/download/", http.StripPrefix("/download/", applyBasicAuth(uploadHandler, *user, *pass)))
-		http.Handle("/raw/", http.StripPrefix("/raw/", applyBasicAuth(rawHandler, *user, *pass)))
-		http.HandleFunc("/favicon.ico", applyBasicAuth(faviconHandler, *user, *pass))
-		http.HandleFunc("/static/logopher.webp", applyBasicAuth(logoHandler, *user, *pass))
-		http.HandleFunc("/zip", applyBasicAuth(zipHandler, *user, *pass))
-		http.HandleFunc("/showhiddenfiles", applyBasicAuth(showHiddenFilesHandler, *user, *pass))
-		http.HandleFunc("/custom-path", applyBasicAuth(createCustomPathHandler(*dir), *user, *pass))
-		http.HandleFunc("/clipboard", applyBasicAuth(clipboardHandler, *user, *pass))
-		http.HandleFunc("/search-file", applyBasicAuth(searchFileHandler(*dir), *user, *pass))
+		http.HandleFunc("/", security.ApplyBasicAuth(fileHandler, *user, *pass))
+		http.Handle("/delete/", http.StripPrefix("/delete/", security.ApplyBasicAuth(deleteHandler, *user, *pass)))
+		http.Handle("/download/", http.StripPrefix("/download/", security.ApplyBasicAuth(uploadHandler, *user, *pass)))
+		http.Handle("/raw/", http.StripPrefix("/raw/", security.ApplyBasicAuth(rawHandler, *user, *pass)))
+		http.HandleFunc("/favicon.ico", security.ApplyBasicAuth(faviconHandler, *user, *pass))
+		http.HandleFunc("/static/logopher.webp", security.ApplyBasicAuth(logoHandler, *user, *pass))
+		http.HandleFunc("/zip", security.ApplyBasicAuth(zipHandler, *user, *pass))
+		http.HandleFunc("/showhiddenfiles", security.ApplyBasicAuth(showHiddenFilesHandler, *user, *pass))
+		http.HandleFunc("/custom-path", security.ApplyBasicAuth(createCustomPathHandler(*dir), *user, *pass))
+		http.HandleFunc("/clipboard", security.ApplyBasicAuth(clipboardHandler, *user, *pass))
+		http.HandleFunc("/search-file", security.ApplyBasicAuth(searchFileHandler(*dir), *user, *pass))
 	} else {
 		http.HandleFunc("/", fileHandler)
 		http.Handle("/delete/", http.StripPrefix("/delete/", deleteHandler))
@@ -503,33 +464,6 @@ func generateSelfSignedCert() ([]byte, []byte, error) {
 	return certPEM, keyPEM, nil
 }
 
-func isSafePath(baseDir, userPath string) (bool, error) {
-	absBaseDir, err := filepath.Abs(baseDir)
-	if err != nil {
-		return false, err
-	}
-
-	absUserPath, err := filepath.Abs(userPath)
-	if err != nil {
-		return false, err
-	}
-
-	return strings.HasPrefix(absUserPath, absBaseDir), nil
-}
-
-func basicAuth(handler http.HandlerFunc, username, password []byte) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		user, pass, ok := r.BasicAuth()
-		if !ok || subtle.ConstantTimeCompare([]byte(user), username) != 1 || subtle.ConstantTimeCompare([]byte(pass), password) != 1 {
-			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte("Unauthorized.\n"))
-			return
-		}
-		handler(w, r)
-	}
-}
-
 func fileHandler(w http.ResponseWriter, r *http.Request, dir string) {
 	if !quite {
 		log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
@@ -553,7 +487,7 @@ func fileHandler(w http.ResponseWriter, r *http.Request, dir string) {
 			return
 		}
 		newdir := filepath.Join(dir, string(decodedPath))
-		isSafe, err := isSafePath(dir, newdir)
+		isSafe, err := security.IsSafePath(dir, newdir)
 		if err != nil || !isSafe {
 			http.Error(w, "Bad path", http.StatusForbidden)
 			if !quite {
@@ -610,8 +544,8 @@ func handleGetRequest(w http.ResponseWriter, _ *http.Request, dir string, curren
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	backButton := createBackButton(currentPath)
-	downloadButton := createZipButton(currentPath)
+	backButton := templates.CreateBackButton(currentPath)
+	downloadButton := templates.CreateZipButton(currentPath)
 	w.Write([]byte(statics.GetTemplates(table, backButton, downloadButton, disableHiddenFiles)))
 }
 
@@ -634,7 +568,7 @@ func createCustomPathHandler(dir string) http.HandlerFunc {
 
 			// Validar paths
 			fullOriginalPath := filepath.Join(dir, originalPath)
-			isSafe, err := isSafePath(dir, fullOriginalPath)
+			isSafe, err := security.IsSafePath(dir, fullOriginalPath)
 			if err != nil || !isSafe {
 				http.Error(w, "Invalid original path", http.StatusBadRequest)
 				return
@@ -672,119 +606,16 @@ func createTable(files []fs.DirEntry, dir string, currentPath string) (string, e
 			return "", err
 		}
 		if file.IsDir() {
-			table += createFolderRow(file, currentPath, fileInfo)
+			table += templates.CreateFolderRow(file, currentPath, fileInfo)
 		} else {
-			table += createFileRow(file, currentPath, fileInfo)
+			customPathsMutex.RLock()
+			table += templates.CreateFileRow(file, currentPath, fileInfo, customPaths, utils.FormatFileSize)
+			customPathsMutex.RUnlock()
 		}
 	}
 	return table, nil
 }
 
-func createZipButton(currentPath string) string {
-	if currentPath != "" {
-		return `<button class="btn" onclick="window.location.href='/zip?path=` + currentPath + `'"><i class="fa fa-download"></i> Download Zip</button>`
-	} else {
-		return `<button class="btn" onclick="window.location.href='/zip'"><i class="fa fa-download"></i> Download Zip</button>`
-	}
-}
-
-func createFolderRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo) string {
-	encodedPath := createEncodedPath(currentPath, file.Name())
-	escapedencodedFilePath := html.EscapeString(encodedPath)
-
-	escapedFolderName := html.EscapeString(file.Name())
-	folderLink := fmt.Sprintf(`<a href="/?path=%s">%s</a>`, escapedencodedFilePath, escapedFolderName)
-	lastModified := fileInfo.ModTime().Format("2006-01-02 15:04:05")
-	return fmt.Sprintf(`
-		<tr>
-			<td>%s</td>
-			<td>%s</td>
-			<td>-</td>
-			<td>%s</td>
-			<td>-</td>
-			<td>
-				<div class="action-buttons">
-					<span>-</span>
-				</div>
-			</td>
-		</tr>
-	`, folderLink, fileInfo.Mode(), lastModified)
-}
-
-func createFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo) string {
-	encodedFilePath := createEncodedPath(currentPath, file.Name())
-
-	escapedFileName := html.EscapeString(file.Name())
-	escapedencodedFilePath := html.EscapeString(encodedFilePath)
-
-	//decodeamos path
-	decodedPath, _ := base64.StdEncoding.DecodeString(currentPath)
-
-	// Buscar custom path para este archivo
-	customPathDisplay := "-"
-	filePath := filepath.Join(string(decodedPath), file.Name())
-	customPathsMutex.RLock()
-	customPath, exists := customPaths[filePath]
-	customPathsMutex.RUnlock()
-	fmt.Println(currentPath)
-	if exists {
-		customPathDisplay = html.EscapeString(customPath)
-	}
-	// Determinar si el archivo es legible (texto)
-	isReadableFile := isTextFile(file.Name())
-
-	// Usar action-buttons y los estilos de botones adecuados
-	downloadLink := fmt.Sprintf(`<button class="action-btn download" title="Download" onclick="window.location.href='/download/?path=%s'"><i class="fa fa-download"></i></button>`, escapedencodedFilePath)
-	deleteLink := fmt.Sprintf(`<button class="action-btn delete" title="Delete" onclick="window.location.href='/delete/?path=%s'"><i class="fa fa-trash"></i></button>`, escapedencodedFilePath)
-	copyURLButton := fmt.Sprintf(`<button class="action-btn link" title="Copy URL" onclick="copyToClipboard('%s', '%s')"><i class="fa fa-link"></i></button>`, currentPath, escapedFileName)
-	customPathButton := fmt.Sprintf(`<button class="action-btn edit" title="Create Custom Path" onclick="showCustomPathForm('%s', '%s')"><i class="fa fa-magic"></i></button>`, escapedFileName, currentPath)
-	// Botón de búsqueda solo para archivos legibles
-	searchButton := ""
-	if isReadableFile {
-		searchButton = fmt.Sprintf(`<button class="action-btn search" title="Search in File" onclick="showSearchModal('%s', '%s')"><i class="fa fa-search"></i></button>`, escapedencodedFilePath, escapedFileName)
-	}
-
-	fileSize, units := formatFileSize(fileInfo.Size())
-	lastModified := fileInfo.ModTime().Format("2006-01-02 15:04:05")
-
-	return fmt.Sprintf(`
-		<tr>
-			<td>%s</td>
-			<td>%s</td>
-			<td>%.2f %s</td>
-			<td>%s</td>
-			<td>%s</td>
-			<td>
-				<div class="action-buttons">
-					%s%s%s%s%s
-				</div>
-			</td>
-		</tr>
-	`, escapedFileName, fileInfo.Mode(), fileSize, units, lastModified, customPathDisplay,
-		downloadLink, copyURLButton, customPathButton, searchButton, deleteLink)
-}
-
-func createEncodedPath(currentPath string, fileName string) string {
-	decodedFilePath, _ := base64.StdEncoding.DecodeString(currentPath)
-	return base64.StdEncoding.EncodeToString([]byte(filepath.Join(string(decodedFilePath), fileName)))
-}
-
-func formatFileSize(size int64) (float64, string) {
-	if size < 1000 {
-		return float64(size), "bytes"
-	} else if size < 1000000 {
-		return float64(size) / 1000, "KBytes"
-	} else {
-		return float64(size) / 1000000, "MBytes"
-	}
-}
-
-func createBackButton(currentPath string) string {
-	if currentPath != "" {
-		return `<button class="btn" onclick="window.location.href='/'"><i class="fa fa-arrow-left"></i> Back</button>`
-	}
-	return ""
-}
 func ZipFiles(dir, currentPath string) (string, error) {
 	// Decodifica la ruta actual
 	decodedPath, _ := base64.StdEncoding.DecodeString(currentPath)
@@ -887,123 +718,10 @@ func isFlagPassed(name string) bool {
 	return found
 }
 
-// isTextFile determina si un archivo es probablemente un archivo de texto legible
-func isTextFile(fileName string) bool {
-	ext := strings.ToLower(filepath.Ext(fileName))
-	// Lista de extensiones de archivo que se consideran legibles como texto
-	textExtensions := map[string]bool{
-		".txt": true, ".md": true, ".json": true, ".xml": true, ".html": true, ".css": true,
-		".js": true, ".go": true, ".py": true, ".java": true, ".c": true, ".cpp": true,
-		".h": true, ".swift": true, ".rb": true, ".php": true, ".sh": true, ".bat": true,
-		".log": true, ".csv": true, ".yml": true, ".yaml": true, ".toml": true, ".ini": true,
-		".cfg": true, ".conf": true, ".properties": true, ".env": true, ".sql": true,
-	}
-	return textExtensions[ext]
-}
+// searchInFile is now in utils.SearchInFile package
 
-// searchInFile busca un término en un archivo y devuelve los resultados
-func searchInFile(filePath, searchTerm string, caseSensitive, wholeWord bool) ([]SearchResult, error) {
-
-	// Comprobar que el archivo existe antes de intentar abrirlo
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("the file does not exist: %s", filePath)
-	}
-
-	// Abrir el archivo
-	file, err := os.Open(filePath)
-	if err != nil {
-		log.Printf("Error to open file: %v", err)
-		return nil, err
-	}
-	defer file.Close()
-
-	// Crear un escáner para leer el archivo línea por línea
-	scanner := bufio.NewScanner(file)
-	lineNumber := 0
-	var results []SearchResult
-
-	// Preparar el término de búsqueda según las opciones
-	var searchFunc func(string) bool
-
-	if !caseSensitive {
-		searchTerm = strings.ToLower(searchTerm)
-	}
-
-	if wholeWord {
-		// Para búsqueda de palabra completa, usamos una expresión regular
-		var pattern string
-		if caseSensitive {
-			pattern = fmt.Sprintf(`\b%s\b`, regexp.QuoteMeta(searchTerm))
-		} else {
-			pattern = fmt.Sprintf(`(?i)\b%s\b`, regexp.QuoteMeta(searchTerm))
-		}
-
-		re, err := regexp.Compile(pattern)
-		if err != nil {
-			return nil, err
-		}
-
-		searchFunc = func(line string) bool {
-			return re.MatchString(line)
-		}
-	} else {
-		// Para búsqueda normal
-		searchFunc = func(line string) bool {
-			if caseSensitive {
-				return strings.Contains(line, searchTerm)
-			}
-			return strings.Contains(strings.ToLower(line), searchTerm)
-		}
-	}
-
-	// Leer el archivo línea por línea
-	for scanner.Scan() {
-		lineNumber++
-		line := scanner.Text()
-
-		// Verificar si la línea contiene el término de búsqueda
-		if searchFunc(line) {
-			// Limitar la longitud de la línea para evitar enviar demasiados datos
-			if len(line) > 300 {
-				line = line[:300] + "..."
-			}
-
-			results = append(results, SearchResult{
-				LineNumber: lineNumber,
-				Content:    line,
-			})
-
-			// Limitar el número total de resultados para evitar problemas de rendimiento
-			if len(results) >= 1000 {
-				results = append(results, SearchResult{
-					LineNumber: -1,
-					Content:    "Search results limited to 1000 matches.",
-				})
-				break
-			}
-		}
-	}
-	// Verificar errores de lectura
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-
-	// Si no encontramos resultados, devolver un mensaje en lugar de un array vacío
-	if len(results) == 0 {
-		results = append(results, SearchResult{
-			LineNumber: -1,
-			Content:    "No matches found.",
-		})
-	}
-
-	return results, nil
-}
-
-// Resultado de búsqueda que se enviará al cliente
-type SearchResult struct {
-	LineNumber int    `json:"lineNumber"`
-	Content    string `json:"content"`
-}
+// SearchResult is now defined in internal/utils package
+type SearchResult = utils.SearchResult
 
 // searchFileHandler maneja las solicitudes de búsqueda en archivos
 func searchFileHandler(dir string) http.HandlerFunc {
@@ -1050,7 +768,7 @@ func searchFileHandler(dir string) http.HandlerFunc {
 		fullPath := filepath.Join(dir, string(decodedFilePath))
 
 		// Verificar que la ruta es segura
-		isSafe, err := isSafePath(dir, fullPath)
+		isSafe, err := security.IsSafePath(dir, fullPath)
 		if err != nil || !isSafe {
 			http.Error(w, "Bad path", http.StatusForbidden)
 			return
@@ -1072,7 +790,7 @@ func searchFileHandler(dir string) http.HandlerFunc {
 			http.Error(w, "Cannot search in directory", http.StatusBadRequest)
 			return
 		} // Implementación real de búsqueda en archivos
-		results, err := searchInFile(fullPath, searchTerm, caseSensitive, wholeWord)
+		results, err := utils.SearchInFile(fullPath, searchTerm, caseSensitive, wholeWord)
 		if err != nil {
 			log.Printf("Error searching in file: %v", err)
 			http.Error(w, "Error searching in file", http.StatusInternalServerError)

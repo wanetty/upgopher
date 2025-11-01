@@ -1,119 +1,120 @@
-# Instrucciones para GitHub Copilot en Upgopher
+# GitHub Copilot Instructions for Upgopher
 
-## Visión General del Proyecto
+## Project Overview
 
-Upgopher es un servidor web simple escrito en Go que proporciona funcionalidades para compartir y gestionar archivos. Diseñado como una alternativa a los servidores de archivos basados en Python, Upgopher ofrece una solución portable y compilable para múltiples plataformas.
+Upgopher is a self-contained Go web server for file sharing and management, designed as a portable, cross-platform alternative to Python-based file servers. The entire application is compiled to a single binary with embedded web assets.
 
-## Arquitectura y Componentes Principales
+## Key Architecture Patterns
 
-### Estructura del Proyecto
+### Monolithic Single-File Design
+- **Core Logic**: All server functionality resides in `upgopher.go` (~1000+ lines)
+- **Embedded Assets**: Static files (HTML/CSS/JS) are embedded using `//go:embed` directives
+- **No External Dependencies**: Zero third-party Go modules (see `go.mod`)
 
-- `upgopher.go`: Archivo principal que contiene toda la lógica de la aplicación
-- `internal/statics/`: Paquete que gestiona los recursos estáticos embebidos
-  - `statics.go`: Maneja la carga de templates, CSS y JavaScript
-  - `templates/index.html`: Interfaz de usuario principal
-  - `css/styles.css`: Estilos de la aplicación
-  - `js/main.js`: Funcionalidad JavaScript del cliente
-
-### Componentes Principales
-
-1. **Sistema de Manejo de Archivos**:
-   - Carga/descarga de archivos con manejo de rutas seguras (`isSafePath`)
-   - Navegación por directorios con codificación base64 para rutas
-   - Generación de archivos ZIP para descarga de directorios completos
-
-2. **Interfaz Web**:
-   - UI basada en HTML/CSS/JS con recursos embebidos
-   - Funcionalidad de arrastrar y soltar para carga de archivos
-   - Visualización y ordenación de listas de archivos
-
-3. **Seguridad**:
-   - Autenticación básica opcional (usuario/contraseña)
-   - Soporte para HTTPS con certificados personalizados o autogenerados
-   - Validación de rutas para prevenir path traversal
-
-4. **Funcionalidades Adicionales**:
-   - Portapapeles compartido para intercambiar texto
-   - Búsqueda de texto en archivos
-   - Rutas personalizadas/acortadas para archivos
-   - Opción para mostrar/ocultar archivos ocultos
-
-## Flujos de Trabajo de Desarrollo
-
-### Compilación
-
-El proyecto utiliza GoReleaser para la gestión de compilaciones multiplataforma:
-
-```bash
-# Compilación local simple
-go build
-
-# Compilación con GoReleaser (vista previa)
-goreleaser release --snapshot --clean
-```
-
-### Arquitectura de Handlers HTTP
-
-Los handlers HTTP siguen un patrón común:
+### HTTP Handler Pattern
+All endpoints follow this security-first pattern:
 ```go
 func customHandler(dir string) http.HandlerFunc {
   return func(w http.ResponseWriter, r *http.Request) {
-    // Verificación de ruta segura
-    // Lógica del handler
-    // Respuesta HTTP
+    // 1. Base64 decode file paths from URL params
+    // 2. Validate with isSafePath() to prevent path traversal
+    // 3. Check file existence and permissions
+    // 4. Apply basic auth wrapper if enabled
   }
 }
 ```
 
-### Convenciones Importantes
+### Path Security Architecture
+**Critical**: All file paths are base64-encoded in URLs and must be validated:
+```go
+// Encoding for URL safety
+encodedPath := base64.StdEncoding.EncodeToString([]byte(filePath))
 
-1. **Codificación de Rutas**: Las rutas de archivo se codifican en base64 para su transferencia segura en URLs:
-   ```go
-   encodedPath := base64.StdEncoding.EncodeToString([]byte(filePath))
-   decodedPath, _ := base64.StdEncoding.DecodeString(encodedPath)
-   ```
-
-2. **Validación de Seguridad**: Todas las rutas de usuario deben validarse con `isSafePath`:
-   ```go
-   isSafe, err := isSafePath(dir, fullPath)
-   if err != nil || !isSafe {
-     http.Error(w, "Bad path", http.StatusForbidden)
-     return
-   }
-   ```
-
-3. **Manejo de Recursos Estáticos**: Los recursos estáticos se incrustan mediante la directiva `//go:embed`:
-   ```go
-   //go:embed static/favicon.ico
-   var favicon embed.FS
-   ```
-
-## Puntos de Integración y Extensión
-
-1. **Añadir Nuevas Funcionalidades HTTP**:
-   - Crear un nuevo handler en `upgopher.go`
-   - Registrarlo en la función `main()`
-   - Considerar la autenticación si está habilitada
-
-2. **Modificar la Interfaz de Usuario**:
-   - Editar `internal/statics/templates/index.html` para cambios en HTML
-   - Editar `internal/statics/css/styles.css` para cambios en estilo
-   - Editar `internal/statics/js/main.js` para cambios en comportamiento
-
-3. **Ampliar Capacidades de Compilación**:
-   - Modificar `.goreleaser.yml` para configurar opciones de compilación o packaging
-
-## Configuración y Opciones
-
-El servidor admite múltiples flags de línea de comandos para su configuración:
+// Always validate before file operations  
+isSafe, err := isSafePath(dir, fullPath)
+if err != nil || !isSafe {
+  http.Error(w, "Bad path", http.StatusForbidden)
+  return
+}
 ```
--port int        Puerto del servidor (default 9090)
--dir string      Directorio para almacenar archivos (default "./uploads")
--user string     Usuario para autenticación básica
--pass string     Contraseña para autenticación básica
--ssl             Habilitar HTTPS
--cert string     Ruta al certificado SSL
--key string      Ruta a la clave privada SSL
--q               Modo silencioso (sin logs)
--disable-hidden-files  Deshabilitar mostrar archivos ocultos
+
+## Critical Development Workflows
+
+### Build System
+**GoReleaser-based**: Cross-platform releases managed via `.goreleaser.yml`
+```bash
+# Local development build
+go build
+
+# Cross-platform release build (requires tag)
+goreleaser release --snapshot --clean
+
+# GitHub Actions auto-builds on tag push
 ```
+
+### Asset Embedding System
+Frontend changes require understanding the embedding pattern in `internal/statics/`:
+- `statics.go` uses `//go:embed templates css js` to bundle assets
+- Template injection via `template.CSS`, `template.HTML`, `template.JS` types
+- **No build step needed** - assets compile directly into binary
+
+### Authentication Wrapper Pattern
+When adding endpoints, check if auth is enabled:
+```go
+// In main(), conditionally wrap with authentication
+if *user != "" && *pass != "" {
+  http.HandleFunc("/new-endpoint", applyBasicAuth(newHandler, *user, *pass))
+} else {
+  http.HandleFunc("/new-endpoint", newHandler)
+}
+```
+
+## Essential Code Patterns
+
+### File Operations
+```go
+// Standard file serving pattern with safety checks
+func fileHandler(dir string) http.HandlerFunc {
+  // Always decode base64 paths from ?path= param
+  // Always call isSafePath() before file ops
+  // Use filepath.Join() for cross-platform paths
+  // Check os.Stat() before serving
+}
+```
+
+### Global State Management
+Key globals that affect behavior:
+- `quite bool` - controls logging output
+- `showHiddenFiles bool` - runtime toggle for hidden files
+- `disableHiddenFiles bool` - compile-time disable flag
+- `customPaths map[string]string` - file shortcuts/aliases
+
+### Logging Convention
+Structured logging with timestamp and HTTP details:
+```go
+if !quite {
+  log.Printf("[%s] [%s - %s] %s %s\n", 
+    time.Now().Format("2006-01-02 15:04:05"), 
+    r.Method, statusCode, r.URL.Path, r.RemoteAddr)
+}
+```
+
+## Integration Points
+
+### Adding New Endpoints
+1. Create handler function following security pattern
+2. Register in `main()` with optional auth wrapper
+3. Update frontend if UI changes needed
+4. Test path traversal protection
+
+### Frontend Modifications  
+- **HTML**: Edit `internal/statics/templates/index.html`
+- **CSS**: Edit `internal/statics/css/styles.css` 
+- **JS**: Edit `internal/statics/js/main.js`
+- **Icons**: FontAwesome 4.7.0 CDN used throughout
+
+### Release Process
+- Tags trigger GitHub Actions workflow in `.github/workflows/go.yml`
+- GoReleaser builds for multiple OS/arch combinations
+- Archives include LICENSE and README.md
+- Self-signed SSL cert generation built-in for HTTPS mode
