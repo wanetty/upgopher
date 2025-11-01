@@ -16,11 +16,16 @@ This project tries to replace all file servers that use python, since there are 
 * Uploaded files are stored in the "uploads" directory by default, but the directory can be changed using the -dir flag
 * Users can view a list of the uploaded files by visiting the root URL
 * Basic authentication is available to restrict access to the server. To use it, set the -user and -pass flags with the desired username and password.
-* Traffic via HTTPS.
-* Generate a self-signed certificate by setting the -ssl flag.
-* Possibility to browse through folders and upload files.
-* Copy file URLs to clipboard with one click for easy sharing.
-* Option to hide hidden files with the -disable-hidden-files flag.
+* Traffic via HTTPS with self-signed certificate generation or custom certificates
+* Browse through folders and upload files with drag-and-drop support
+* Copy file URLs to clipboard with one click for easy sharing
+* Search within text files directly from the web interface
+* Create custom path aliases for easy file access
+* Shared clipboard for cross-device text sharing
+* Zip folder download functionality
+* Option to hide hidden files with the -disable-hidden-files flag
+
+
 
 ## Installation
 
@@ -110,8 +115,52 @@ This will start the server on the default port (9090) and store uploaded files i
 ./upgopher -disable-hidden-files
 ```
 
+
+## Security
+
+### Reporting Vulnerabilities
+
+If you discover a security vulnerability, please contact [@gm_eduard](https://twitter.com/gm_eduard/) directly. Please do not open a public issue.
+
+
 ## License
 This project is licensed under the MIT License. See the LICENSE file for details.
 
+## Development
+
+### Building from Source
+
+```bash
+git clone https://github.com/wanetty/upgopher.git
+cd upgopher
+go build -o upgopher
+```
+
+### Running Tests
+
+```bash
+# All tests
+go test -v ./...
+
+# Only fast tests (skip time-based tests)
+go test -v -short ./...
+
+# With coverage
+go test -cover ./...
+```
+
+### Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run tests (`go test -v ./...`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+
 ## Info
 For more information, you can find me on Twitter as [@gm_eduard](https://twitter.com/gm_eduard/).
+
+**Security Contact**: For security issues, please contact [@gm_eduard](https://twitter.com/gm_eduard/) privately.
