@@ -80,7 +80,7 @@ func CreateFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo, c
 	deleteLink := fmt.Sprintf(`<button class="action-btn delete" title="Delete" onclick="window.location.href='/delete/?path=%s'"><i class="fa fa-trash"></i></button>`, escapedencodedFilePath)
 	copyURLButton := fmt.Sprintf(`<button class="action-btn link" title="Copy URL" onclick="copyToClipboard('%s', '%s')"><i class="fa fa-link"></i></button>`, currentPath, escapedFileName)
 	customPathButton := fmt.Sprintf(`<button class="action-btn edit" title="Create Custom Path" onclick="showCustomPathForm('%s', '%s')"><i class="fa fa-magic"></i></button>`, escapedFileName, currentPath)
-	
+
 	// Search button only for readable files
 	searchButton := ""
 	if isReadableFile {

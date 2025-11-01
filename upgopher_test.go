@@ -1,11 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/wanetty/upgopher/internal/handlers"
 	"github.com/wanetty/upgopher/internal/security"
 	"github.com/wanetty/upgopher/internal/utils"
 )
@@ -261,5 +266,65 @@ func TestFormatFileSizeLogic(t *testing.T) {
 				t.Errorf("FormatFileSize() unit = %v, want %v", unit, tt.wantUnit)
 			}
 		})
+	}
+}
+
+// TestFileUpload tests the file upload functionality (POST to /)
+func TestFileUpload(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create FileHandlers instance
+	fh := handlers.NewFileHandlers(tempDir, true, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	handler := fh.List()
+
+	// Create a test file to upload
+	fileContent := []byte("test file content for upload")
+
+	// Create multipart form
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	part, err := writer.CreateFormFile("file", "testupload.txt")
+	if err != nil {
+		t.Fatalf("Failed to create form file: %v", err)
+	}
+
+	_, err = part.Write(fileContent)
+	if err != nil {
+		t.Fatalf("Failed to write file content: %v", err)
+	}
+
+	err = writer.Close()
+	if err != nil {
+		t.Fatalf("Failed to close writer: %v", err)
+	}
+
+	// Create POST request
+	req := httptest.NewRequest("POST", "/", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	w := httptest.NewRecorder()
+
+	// Execute handler
+	handler(w, req)
+
+	// Should redirect after successful upload
+	if w.Code != http.StatusSeeOther {
+		t.Errorf("Expected status 303 SeeOther, got %d", w.Code)
+	}
+
+	// Verify file was created
+	uploadedFilePath := filepath.Join(tempDir, "testupload.txt")
+	if _, err := os.Stat(uploadedFilePath); os.IsNotExist(err) {
+		t.Error("File was not uploaded")
+	}
+
+	// Verify file content
+	content, err := os.ReadFile(uploadedFilePath)
+	if err != nil {
+		t.Fatalf("Failed to read uploaded file: %v", err)
+	}
+
+	if !bytes.Equal(content, fileContent) {
+		t.Errorf("Uploaded file content mismatch. Got %s, want %s", content, fileContent)
 	}
 }

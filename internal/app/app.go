@@ -4,25 +4,25 @@ import "sync"
 
 // Config holds the application configuration
 type Config struct {
-	Dir                 string
-	Port                int
-	User                string
-	Pass                string
-	SSL                 bool
-	Cert                string
-	Key                 string
-	Quite               bool
-	DisableHiddenFiles  bool
+	Dir                string
+	Port               int
+	User               string
+	Pass               string
+	SSL                bool
+	Cert               string
+	Key                string
+	Quite              bool
+	DisableHiddenFiles bool
 }
 
 // App encapsulates the application state and configuration
 type App struct {
-	Config             *Config
-	ShowHiddenFiles    bool
-	CustomPaths        map[string]string
-	CustomPathsMutex   sync.RWMutex
-	SharedClipboard    string
-	ClipboardMutex     sync.Mutex
+	Config           *Config
+	ShowHiddenFiles  bool
+	CustomPaths      map[string]string
+	CustomPathsMutex sync.RWMutex
+	SharedClipboard  string
+	ClipboardMutex   sync.Mutex
 }
 
 // NewApp creates a new App instance with the provided configuration
@@ -53,7 +53,7 @@ func (a *App) SetCustomPath(originalPath, customPath string) {
 func (a *App) GetAllCustomPaths() map[string]string {
 	a.CustomPathsMutex.RLock()
 	defer a.CustomPathsMutex.RUnlock()
-	
+
 	// Return a copy to avoid concurrent access issues
 	copy := make(map[string]string, len(a.CustomPaths))
 	for k, v := range a.CustomPaths {
@@ -66,7 +66,7 @@ func (a *App) GetAllCustomPaths() map[string]string {
 func (a *App) CheckCustomPathExists(customPath string) bool {
 	a.CustomPathsMutex.RLock()
 	defer a.CustomPathsMutex.RUnlock()
-	
+
 	for _, existingPath := range a.CustomPaths {
 		if existingPath == customPath {
 			return true

@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wanetty/upgopher/internal/handlers"
 	"github.com/wanetty/upgopher/internal/security"
 )
 
@@ -108,7 +109,8 @@ func TestDirectoryDeletionPrevention(t *testing.T) {
 	encodedPath := base64.StdEncoding.EncodeToString([]byte("testdir"))
 
 	// Create delete handler
-	handler := deleteHandler(tempDir)
+	fh := handlers.NewFileHandlers(tempDir, true, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	handler := fh.Delete()
 
 	// Create request to delete directory
 	req := httptest.NewRequest("GET", "/delete/?path="+encodedPath, nil)
@@ -177,7 +179,8 @@ func TestCustomPathsConcurrentAccess(t *testing.T) {
 		}
 	}
 
-	handler := createCustomPathHandler(tempDir)
+	cph := handlers.NewCustomPathHandler(tempDir, true, &customPaths, &customPathsMutex)
+	handler := cph.Handle()
 
 	var wg sync.WaitGroup
 	errors := make(chan error, 100)
@@ -201,7 +204,8 @@ func TestCustomPathsConcurrentAccess(t *testing.T) {
 			handler(w, req)
 
 			// Check for data races or unexpected errors
-			if w.Code != http.StatusOK && w.Code != http.StatusConflict {
+			// Status codes: 200 OK (old behavior), 303 SeeOther (redirect after creation), 409 Conflict
+			if w.Code != http.StatusOK && w.Code != http.StatusConflict && w.Code != http.StatusSeeOther {
 				errors <- fmt.Errorf("unexpected status code: %d", w.Code)
 			}
 		}(i)
@@ -233,7 +237,8 @@ func TestRawHandlerPathSecurity(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	handler := rawHandler(tempDir)
+	fh := handlers.NewFileHandlers(tempDir, true, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	handler := fh.Raw()
 
 	attacks := []string{
 		"../../../etc/passwd",

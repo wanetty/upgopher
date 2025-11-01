@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/wanetty/upgopher/internal/security"
+	"github.com/wanetty/upgopher/internal/server"
 	"github.com/wanetty/upgopher/internal/statics"
 	"github.com/wanetty/upgopher/internal/templates"
 	"github.com/wanetty/upgopher/internal/utils"
@@ -44,6 +45,7 @@ var version = "1.10.1"
 var showHiddenFiles bool = false
 var disableHiddenFiles bool = false
 var sharedClipboard string = ""
+var clipboardMutex sync.Mutex
 
 type CustomPath struct {
 	OriginalPath string
@@ -52,260 +54,6 @@ type CustomPath struct {
 
 var customPaths = make(map[string]string) // map[originalPath]customPath
 var customPathsMutex sync.RWMutex         // protects customPaths from concurrent access
-
-// Handlers //////////////////////////////////////////////////
-func fileHandlerWithDir(dir string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		fileHandler(w, r, dir)
-	}
-}
-func rawHandler(dir string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		return_code := "200"
-		path := strings.TrimPrefix(r.URL.Path, "/raw/")
-		fullPath := filepath.Join(dir, path)
-
-		isSafe, err := security.IsSafePath(dir, fullPath)
-		if err != nil || !isSafe {
-			http.Error(w, "Bad path", http.StatusForbidden)
-			return_code = "403"
-			if !quite {
-				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, return_code, r.URL.Path, r.RemoteAddr)
-			}
-			return
-		}
-
-		fileInfo, err := os.Stat(fullPath)
-		if os.IsNotExist(err) || fileInfo.IsDir() {
-			http.Error(w, "File not found", http.StatusNotFound)
-			return_code = "404"
-			if !quite {
-				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, return_code, r.URL.Path, r.RemoteAddr)
-			}
-			return
-		}
-		if !quite {
-			log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, return_code, r.URL.Path, r.RemoteAddr)
-		}
-		http.ServeFile(w, r, fullPath)
-	}
-}
-
-func uploadHandler(dir string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !quite {
-			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
-		}
-
-		encodedFilePath := r.URL.Query().Get("path")
-		decodedFilePath, err := base64.StdEncoding.DecodeString(encodedFilePath)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		fullFilePath := filepath.Join(dir, string(decodedFilePath))
-		isSafe, err := security.IsSafePath(dir, fullFilePath)
-		if err != nil || !isSafe {
-			http.Error(w, "Bad path", http.StatusForbidden)
-			if !quite {
-				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, "403", r.URL.Path, r.RemoteAddr)
-			}
-			return
-		}
-
-		if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
-			http.Error(w, "File not found", http.StatusNotFound)
-			if !quite {
-				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, "404", r.URL.Path, r.RemoteAddr)
-			}
-			return
-		}
-
-		_, filename := filepath.Split(fullFilePath)
-		w.Header().Set("Content-Disposition", "attachment; filename="+filename)
-		http.ServeFile(w, r, fullFilePath)
-	}
-}
-
-func deleteHandler(dir string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !quite {
-			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
-		}
-
-		encodedFilePath := r.URL.Query().Get("path")
-		decodedFilePath, err := base64.StdEncoding.DecodeString(encodedFilePath)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			log.Printf("[%s] Error decoding path: %v\n", time.Now().Format("2006-01-02 15:04:05"), err)
-			return
-		}
-
-		fullFilePath := filepath.Join(dir, string(decodedFilePath))
-		isSafe, err := security.IsSafePath(dir, fullFilePath)
-		if err != nil || !isSafe {
-			http.Error(w, "Bad path", http.StatusForbidden)
-			if !quite {
-				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, "403", r.URL.Path, r.RemoteAddr)
-			}
-			return
-		}
-
-		fileInfo, err := os.Stat(fullFilePath)
-		if os.IsNotExist(err) {
-			http.Error(w, "File not found", http.StatusNotFound)
-			if !quite {
-				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, "404", r.URL.Path, r.RemoteAddr)
-			}
-			return
-		}
-
-		// Prevent deletion of directories
-		if fileInfo.IsDir() {
-			http.Error(w, "Cannot delete directories", http.StatusForbidden)
-			if !quite {
-				log.Printf("[%s] Attempt to delete directory blocked: %s\n", time.Now().Format("2006-01-02 15:04:05"), fullFilePath)
-			}
-			return
-		}
-
-		err = os.Remove(fullFilePath)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			log.Printf("[%s] Error removing file: %v\n", time.Now().Format("2006-01-02 15:04:05"), err)
-			return
-		}
-
-		if !quite {
-			log.Printf("[%s] File deleted: %s\n", time.Now().Format("2006-01-02 15:04:05"), fullFilePath)
-		}
-
-		if encodedFilePath == "" {
-			http.Redirect(w, r, "/", http.StatusSeeOther)
-		} else {
-			dirPath, _ := filepath.Split(string(decodedFilePath))
-			encodedDirPath := base64.StdEncoding.EncodeToString([]byte(dirPath))
-			http.Redirect(w, r, "/?path="+encodedDirPath, http.StatusSeeOther)
-		}
-	}
-}
-
-func zipHandler(dir string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		currentPath := r.URL.Query().Get("path")
-		zipFilename, err := ZipFiles(dir, currentPath)
-		if err != nil {
-			http.Error(w, "Unable to create zip file", http.StatusInternalServerError)
-			return
-		}
-		defer os.Remove(zipFilename)
-		w.Header().Set("Content-Disposition", "attachment; filename=files.zip")
-		w.Header().Set("Content-Type", "application/zip")
-		http.ServeFile(w, r, zipFilename)
-	}
-}
-
-func showHiddenFilesHandler(w http.ResponseWriter, r *http.Request) {
-	// Handle GET request - return current hidden files status
-	if r.Method == http.MethodGet {
-		if !quite {
-			log.Printf("[%s] Getting hidden files setting: %t\n", time.Now().Format("2006-01-02 15:04:05"), showHiddenFiles)
-		}
-		if showHiddenFiles {
-			w.Write([]byte("true"))
-			return
-		} else {
-			w.Write([]byte("false"))
-		}
-	} else if r.Method == http.MethodPost {
-		// Handle POST request - toggle hidden files setting
-		if !quite {
-			log.Printf("[%s] Toggling hidden files setting\n", time.Now().Format("2006-01-02 15:04:05"))
-		}
-		if disableHiddenFiles {
-			http.Error(w, "You can't change this setting", http.StatusForbidden)
-			return
-		} else {
-			showHiddenFiles = !showHiddenFiles
-			return
-		}
-	}
-}
-
-func faviconHandler(w http.ResponseWriter, r *http.Request) {
-	faviconData, err := favicon.ReadFile("static/favicon.ico")
-	if err != nil {
-		http.Error(w, "Favicon not found", http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Content-Type", "image/x-icon")
-	w.Write(faviconData)
-}
-
-func logoHandler(w http.ResponseWriter, r *http.Request) {
-	logoData, err := logo.ReadFile("static/logopher.webp")
-	if err != nil {
-		http.Error(w, "Logo not found", http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Content-Type", "image/png")
-	w.Write(logoData)
-}
-
-// Clipboard handler to get and update shared clipboard content
-func clipboardHandler(w http.ResponseWriter, r *http.Request) {
-	if !quite {
-		log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
-	}
-
-	// Set CORS headers to allow requests from any origin
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
-	// Handle preflight OPTIONS request
-	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	if r.Method == http.MethodGet {
-		// Return current clipboard content
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Write([]byte(sharedClipboard))
-		if !quite {
-			log.Printf("[%s] Clipboard content returned: '%s'\n", time.Now().Format("2006-01-02 15:04:05"), sharedClipboard)
-		}
-	} else if r.Method == http.MethodPost {
-		// Check rate limit before processing POST request
-		clientIP := r.RemoteAddr
-		if !security.CheckRateLimit(clientIP) {
-			http.Error(w, "Rate limit exceeded. Maximum 20 requests per minute.", http.StatusTooManyRequests)
-			if !quite {
-				log.Printf("[%s] Rate limit exceeded for IP: %s\n", time.Now().Format("2006-01-02 15:04:05"), clientIP)
-			}
-			return
-		}
-
-		// Update clipboard with received data
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, "Error reading data", http.StatusBadRequest)
-			log.Printf("[%s] Error reading clipboard data: %v\n", time.Now().Format("2006-01-02 15:04:05"), err)
-			return
-		}
-		defer r.Body.Close()
-
-		sharedClipboard = string(body)
-		w.WriteHeader(http.StatusOK)
-		if !quite {
-			log.Printf("[%s] Clipboard updated to: '%s'\n", time.Now().Format("2006-01-02 15:04:05"), sharedClipboard)
-		}
-	} else {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
 
 // Main /////////////////////////////////////////////////
 func main() {
@@ -329,12 +77,6 @@ func main() {
 		os.MkdirAll(*dir, 0755)
 	}
 
-	fileHandler := fileHandlerWithDir(*dir)
-	uploadHandler := uploadHandler(*dir)
-	deleteHandler := deleteHandler(*dir)
-	rawHandler := rawHandler(*dir)
-	zipHandler := zipHandler(*dir)
-
 	if (*user != "" && *pass == "") || (*user == "" && *pass != "") {
 		log.Fatalf("If you use the username or password you have to use both.")
 		return
@@ -342,31 +84,22 @@ func main() {
 	if *disableHiddenFilesarg {
 		disableHiddenFiles = true
 	}
-	if *user != "" && *pass != "" {
-		http.HandleFunc("/", security.ApplyBasicAuth(fileHandler, *user, *pass))
-		http.Handle("/delete/", http.StripPrefix("/delete/", security.ApplyBasicAuth(deleteHandler, *user, *pass)))
-		http.Handle("/download/", http.StripPrefix("/download/", security.ApplyBasicAuth(uploadHandler, *user, *pass)))
-		http.Handle("/raw/", http.StripPrefix("/raw/", security.ApplyBasicAuth(rawHandler, *user, *pass)))
-		http.HandleFunc("/favicon.ico", security.ApplyBasicAuth(faviconHandler, *user, *pass))
-		http.HandleFunc("/static/logopher.webp", security.ApplyBasicAuth(logoHandler, *user, *pass))
-		http.HandleFunc("/zip", security.ApplyBasicAuth(zipHandler, *user, *pass))
-		http.HandleFunc("/showhiddenfiles", security.ApplyBasicAuth(showHiddenFilesHandler, *user, *pass))
-		http.HandleFunc("/custom-path", security.ApplyBasicAuth(createCustomPathHandler(*dir), *user, *pass))
-		http.HandleFunc("/clipboard", security.ApplyBasicAuth(clipboardHandler, *user, *pass))
-		http.HandleFunc("/search-file", security.ApplyBasicAuth(searchFileHandler(*dir), *user, *pass))
-	} else {
-		http.HandleFunc("/", fileHandler)
-		http.Handle("/delete/", http.StripPrefix("/delete/", deleteHandler))
-		http.Handle("/download/", http.StripPrefix("/download/", uploadHandler))
-		http.Handle("/raw/", http.StripPrefix("/raw/", rawHandler))
-		http.HandleFunc("/favicon.ico", faviconHandler)
-		http.HandleFunc("/static/logopher.webp", logoHandler)
-		http.HandleFunc("/zip", zipHandler)
-		http.HandleFunc("/showhiddenfiles", showHiddenFilesHandler)
-		http.HandleFunc("/custom-path", createCustomPathHandler(*dir))
-		http.HandleFunc("/clipboard", clipboardHandler)
-		http.HandleFunc("/search-file", searchFileHandler(*dir))
-	}
+
+	// Setup all routes using centralized router
+	server.SetupRoutes(
+		*dir,
+		*user,
+		*pass,
+		quite,
+		disableHiddenFiles,
+		&showHiddenFiles,
+		&customPaths,
+		&customPathsMutex,
+		&sharedClipboard,
+		&clipboardMutex,
+		&favicon,
+		&logo,
+	)
 
 	if !isFlagPassed("port") && *useTLS {
 		*port = 443
