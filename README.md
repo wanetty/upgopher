@@ -207,5 +207,64 @@ Upgopher is **NOT recommended** for:
 ## License
 This project is licensed under the MIT License. See the LICENSE file for details.
 
+## Development
+
+### Building from Source
+
+```bash
+git clone https://github.com/wanetty/upgopher.git
+cd upgopher
+go build -o upgopher
+```
+
+### Running Tests
+
+```bash
+# All tests
+go test -v ./...
+
+# Only fast tests (skip time-based tests)
+go test -v -short ./...
+
+# With coverage
+go test -cover ./...
+```
+
+### Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run tests (`go test -v ./...`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+## Changelog
+
+### v1.11.0 (Security Hardening Release)
+- **Security Fixes**:
+  - Fixed race condition in custom paths map with `sync.RWMutex`
+  - Added rate limiting for clipboard endpoint (20 req/min per IP)
+  - Prevented directory deletion via delete endpoint
+  - Sanitized filesystem paths in HTTP error messages
+  - Added HTTP server timeouts (60s read/write, 120s idle)
+- **Testing**:
+  - Added comprehensive unit test suite (`upgopher_test.go`)
+  - Added security test suite with attack vector validation (`security_test.go`)
+  - Total: 663+ lines of test code covering critical functions
+- **Documentation**:
+  - Updated README with security best practices
+  - Added testing documentation
+  - Added threat model and deployment recommendations
+
+### v1.10.1 (Previous)
+- File search functionality within text files
+- Custom path aliases for files
+- Shared clipboard feature
+- Drag-and-drop upload support
+
 ## Info
 For more information, you can find me on Twitter as [@gm_eduard](https://twitter.com/gm_eduard/).
+
+**Security Contact**: For security issues, please contact [@gm_eduard](https://twitter.com/gm_eduard/) privately.
