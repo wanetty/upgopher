@@ -442,6 +442,9 @@ func startServer(addr string, useTLS bool, certFile, keyFile string, _ int) {
 			TLSConfig: &tls.Config{
 				Certificates: []tls.Certificate{cert},
 			},
+			ReadTimeout:  60 * time.Second,
+			WriteTimeout: 60 * time.Second,
+			IdleTimeout:  120 * time.Second,
 		}
 
 		if !quite {
@@ -451,10 +454,17 @@ func startServer(addr string, useTLS bool, certFile, keyFile string, _ int) {
 			log.Fatalf("Error starting HTTPS server: %v", err)
 		}
 	} else {
+		server := &http.Server{
+			Addr:         addr,
+			ReadTimeout:  60 * time.Second,
+			WriteTimeout: 60 * time.Second,
+			IdleTimeout:  120 * time.Second,
+		}
+
 		if !quite {
 			log.Printf("[%s] Starting HTTP server on %s", time.Now().Format("2006-01-02 15:04:05"), addr)
 		}
-		if err := http.ListenAndServe(addr, nil); err != nil {
+		if err := server.ListenAndServe(); err != nil {
 			log.Fatalf("Error starting HTTP server: %v", err)
 		}
 	}
