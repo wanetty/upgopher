@@ -54,6 +54,9 @@ type CustomPath struct {
 var customPaths = make(map[string]string) // map[originalPath]customPath
 var customPathsMutex sync.RWMutex         // protects customPaths from concurrent access
 
+// Rate limiting for clipboard endpoint
+var clipboardRateLimiter sync.Map // map[string][]time.Time - IP -> request timestamps
+
 // Handlers //////////////////////////////////////////////////
 func fileHandlerWithDir(dir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -250,6 +253,35 @@ func applyBasicAuth(handler http.HandlerFunc, user, pass string) http.HandlerFun
 	return basicAuth(handler, userByte, passByte)
 }
 
+// checkRateLimit checks if the IP has exceeded rate limit (20 requests per minute)
+func checkRateLimit(ip string) bool {
+	now := time.Now()
+	oneMinuteAgo := now.Add(-time.Minute)
+
+	// Get or create timestamp list for this IP
+	value, _ := clipboardRateLimiter.LoadOrStore(ip, []time.Time{})
+	timestamps := value.([]time.Time)
+
+	// Filter out timestamps older than 1 minute
+	var recentRequests []time.Time
+	for _, ts := range timestamps {
+		if ts.After(oneMinuteAgo) {
+			recentRequests = append(recentRequests, ts)
+		}
+	}
+
+	// Check if rate limit exceeded
+	if len(recentRequests) >= 20 {
+		return false // rate limit exceeded
+	}
+
+	// Add current request timestamp
+	recentRequests = append(recentRequests, now)
+	clipboardRateLimiter.Store(ip, recentRequests)
+
+	return true // request allowed
+}
+
 // Clipboard handler to get and update shared clipboard content
 func clipboardHandler(w http.ResponseWriter, r *http.Request) {
 	if !quite {
@@ -275,6 +307,16 @@ func clipboardHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[%s] Clipboard content returned: '%s'\n", time.Now().Format("2006-01-02 15:04:05"), sharedClipboard)
 		}
 	} else if r.Method == http.MethodPost {
+		// Check rate limit before processing POST request
+		clientIP := r.RemoteAddr
+		if !checkRateLimit(clientIP) {
+			http.Error(w, "Rate limit exceeded. Maximum 20 requests per minute.", http.StatusTooManyRequests)
+			if !quite {
+				log.Printf("[%s] Rate limit exceeded for IP: %s\n", time.Now().Format("2006-01-02 15:04:05"), clientIP)
+			}
+			return
+		}
+
 		// Update clipboard with received data
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
