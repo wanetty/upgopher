@@ -41,7 +41,7 @@ var logo embed.FS
 
 // global vars
 var quite bool = false
-var version = "1.10.1"
+var version = "1.12.0"
 var showHiddenFiles bool = false
 var disableHiddenFiles bool = false
 var sharedClipboard string = ""

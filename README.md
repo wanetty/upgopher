@@ -25,14 +25,7 @@ This project tries to replace all file servers that use python, since there are 
 * Zip folder download functionality
 * Option to hide hidden files with the -disable-hidden-files flag
 
-### Security Features
-* **Path Traversal Protection**: Validates all file paths to prevent directory escape attacks
-* **Directory Deletion Prevention**: Blocks attempts to delete directories via the delete endpoint
-* **Rate Limiting**: Clipboard endpoint limited to 20 requests per minute per IP to prevent abuse
-* **Concurrent Access Protection**: Thread-safe custom paths management with mutex protection
-* **HTTP Timeouts**: Server configured with 60s read/write timeouts and 120s idle timeout to prevent resource exhaustion
-* **Sanitized Error Messages**: Filesystem paths hidden in HTTP responses to prevent information leakage
-* **Constant-Time Authentication**: Basic auth uses constant-time comparison to prevent timing attacks
+
 
 ## Installation
 
@@ -122,78 +115,12 @@ This will start the server on the default port (9090) and store uploaded files i
 ./upgopher -disable-hidden-files
 ```
 
-## Testing
-
-The project includes comprehensive test coverage for security-critical functions and handlers.
-
-### Running Tests
-
-Run all tests:
-```bash
-go test -v ./...
-```
-
-Run only unit tests:
-```bash
-go test -v -run 'Test(IsSafePath|SearchInFile|Base64|CheckRateLimit|FormatFileSize)'
-```
-
-Run security tests:
-```bash
-go test -v -run 'Test(Path|Directory|RateLimiting|CustomPaths|RawHandler|SearchHandler|BasicAuth)'
-```
-
-### Test Coverage
-
-The test suite includes:
-- **Unit Tests** (`upgopher_test.go`): Core functionality testing
-  - Path traversal prevention (`isSafePath`)
-  - File search functionality with case-sensitive and whole-word options
-  - Base64 path encoding/decoding
-  - Rate limiting logic
-  - File size formatting
-
-- **Security Tests** (`security_test.go`): Attack vector validation
-  - 6 different path traversal attack techniques
-  - Directory deletion prevention
-  - Rate limiting under load
-  - Concurrent custom paths access (race condition prevention)
-  - Raw file handler security
-  - Search handler path injection prevention
-  - Authentication bypass attempts
-
-### Coverage Goals
-- **Critical Security Functions**: 100% coverage
-- **Overall Project**: 60%+ coverage target
-- All tests passing on main and security branches
 
 ## Security
 
 ### Reporting Vulnerabilities
 
 If you discover a security vulnerability, please contact [@gm_eduard](https://twitter.com/gm_eduard/) directly. Please do not open a public issue.
-
-### Security Best Practices
-
-When deploying Upgopher:
-1. **Always use HTTPS** in production (`-ssl` flag)
-2. **Enable authentication** for public-facing deployments (`-user` and `-pass` flags)
-3. **Restrict directory access** using `-dir` to limit filesystem exposure
-4. **Keep the binary updated** to get the latest security patches
-5. **Monitor logs** for suspicious access patterns (unless using `-q` quiet mode)
-6. **Use firewall rules** to restrict access to trusted IPs when possible
-
-### Threat Model
-
-Upgopher is designed for:
-- ✅ Trusted local networks (home LANs, office networks)
-- ✅ Single-user or small team file sharing
-- ✅ Development and testing environments
-
-Upgopher is **NOT recommended** for:
-- ❌ Public internet exposure without additional security layers (reverse proxy, VPN)
-- ❌ Multi-tenant environments with strict access control requirements
-- ❌ Hosting untrusted user uploads without additional scanning/validation
 
 ### Recent Security Improvements (v1.11.0)
 
@@ -240,29 +167,6 @@ go test -cover ./...
 6. Push to the branch (`git push origin feature/amazing-feature`)
 7. Open a Pull Request
 
-## Changelog
-
-### v1.11.0 (Security Hardening Release)
-- **Security Fixes**:
-  - Fixed race condition in custom paths map with `sync.RWMutex`
-  - Added rate limiting for clipboard endpoint (20 req/min per IP)
-  - Prevented directory deletion via delete endpoint
-  - Sanitized filesystem paths in HTTP error messages
-  - Added HTTP server timeouts (60s read/write, 120s idle)
-- **Testing**:
-  - Added comprehensive unit test suite (`upgopher_test.go`)
-  - Added security test suite with attack vector validation (`security_test.go`)
-  - Total: 663+ lines of test code covering critical functions
-- **Documentation**:
-  - Updated README with security best practices
-  - Added testing documentation
-  - Added threat model and deployment recommendations
-
-### v1.10.1 (Previous)
-- File search functionality within text files
-- Custom path aliases for files
-- Shared clipboard feature
-- Drag-and-drop upload support
 
 ## Info
 For more information, you can find me on Twitter as [@gm_eduard](https://twitter.com/gm_eduard/).
