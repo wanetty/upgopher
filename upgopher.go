@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/wanetty/upgopher/internal/statics"
@@ -51,6 +52,7 @@ type CustomPath struct {
 }
 
 var customPaths = make(map[string]string) // map[originalPath]customPath
+var customPathsMutex sync.RWMutex         // protects customPaths from concurrent access
 
 // Handlers //////////////////////////////////////////////////
 func fileHandlerWithDir(dir string) http.HandlerFunc {
@@ -558,12 +560,15 @@ func createCustomPathHandler(dir string) http.HandlerFunc {
 			customPath := r.FormValue("customPath")
 
 			// Verificar si el custom path ya existe
+			customPathsMutex.RLock()
 			for _, existingCustomPath := range customPaths {
 				if existingCustomPath == customPath {
+					customPathsMutex.RUnlock()
 					http.Error(w, "Custom path already exists", http.StatusConflict)
 					return
 				}
 			}
+			customPathsMutex.RUnlock()
 
 			// Validar paths
 			fullOriginalPath := filepath.Join(dir, originalPath)
@@ -580,7 +585,9 @@ func createCustomPathHandler(dir string) http.HandlerFunc {
 			}
 
 			// Almacenar el custom path
+			customPathsMutex.Lock()
 			customPaths[originalPath] = customPath
+			customPathsMutex.Unlock()
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -654,7 +661,9 @@ func createFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo) s
 	// Buscar custom path para este archivo
 	customPathDisplay := "-"
 	filePath := filepath.Join(string(decodedPath), file.Name())
+	customPathsMutex.RLock()
 	customPath, exists := customPaths[filePath]
+	customPathsMutex.RUnlock()
 	fmt.Println(currentPath)
 	if exists {
 		customPathDisplay = html.EscapeString(customPath)
