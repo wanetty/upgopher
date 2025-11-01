@@ -1049,11 +1049,11 @@ func searchFileHandler(dir string) http.HandlerFunc {
 		fileInfo, err := os.Stat(fullPath)
 		if os.IsNotExist(err) {
 			log.Printf("File not found: %s", fullPath)
-			http.Error(w, fmt.Sprintf("File not found: %s", fullPath), http.StatusNotFound)
+			http.Error(w, fmt.Sprintf("File not found: %s", filepath.Base(fullPath)), http.StatusNotFound)
 			return
 		} else if err != nil {
 			log.Printf("Error accessing file: %v, path: %s", err, fullPath)
-			http.Error(w, fmt.Sprintf("Error accessing file: %v", err), http.StatusInternalServerError)
+			http.Error(w, "Error accessing file", http.StatusInternalServerError)
 			return
 		}
 
