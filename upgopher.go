@@ -156,10 +156,20 @@ func deleteHandler(dir string) http.HandlerFunc {
 			return
 		}
 
-		if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
+		fileInfo, err := os.Stat(fullFilePath)
+		if os.IsNotExist(err) {
 			http.Error(w, "File not found", http.StatusNotFound)
 			if !quite {
 				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, "404", r.URL.Path, r.RemoteAddr)
+			}
+			return
+		}
+
+		// Prevent deletion of directories
+		if fileInfo.IsDir() {
+			http.Error(w, "Cannot delete directories", http.StatusForbidden)
+			if !quite {
+				log.Printf("[%s] Attempt to delete directory blocked: %s\n", time.Now().Format("2006-01-02 15:04:05"), fullFilePath)
 			}
 			return
 		}
