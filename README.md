@@ -122,14 +122,6 @@ This will start the server on the default port (9090) and store uploaded files i
 
 If you discover a security vulnerability, please contact [@gm_eduard](https://twitter.com/gm_eduard/) directly. Please do not open a public issue.
 
-### Recent Security Improvements (v1.11.0)
-
-- Fixed race condition in custom paths map (SEC-1)
-- Added rate limiting for clipboard endpoint (SEC-3)
-- Prevented directory deletion via delete endpoint (SEC-4)
-- Sanitized filesystem paths in error messages (SEC-6)
-- Added HTTP server timeouts to prevent resource exhaustion
-- Comprehensive security test suite with attack vector validation
 
 ## License
 This project is licensed under the MIT License. See the LICENSE file for details.
