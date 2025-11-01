@@ -1,119 +1,175 @@
-# Instrucciones para GitHub Copilot en Upgopher
+# Copilot Instructions for Upgopher
 
-## Visión General del Proyecto
+## Project Overview
+Upgopher is a zero-dependency Go web server for file sharing with security-first design. Single binary distribution with embedded assets.
 
-Upgopher es un servidor web simple escrito en Go que proporciona funcionalidades para compartir y gestionar archivos. Diseñado como una alternativa a los servidores de archivos basados en Python, Upgopher ofrece una solución portable y compilable para múltiples plataformas.
+## Architecture
 
-## Arquitectura y Componentes Principales
+### Modular Structure (Post-Refactor)
+- **`upgopher.go`**: Main entry point (~200 lines) - handles CLI args, TLS setup, and legacy handler delegation
+- **`internal/server/router.go`**: Centralized route registration with conditional auth wrapping
+- **`internal/handlers/`**: HTTP handlers (`files.go`, `clipboard.go`, `custompath.go`, `ui.go`)
+- **`internal/security/`**: Security primitives (`path.go`, `auth.go`, `ratelimit.go`)
+- **`internal/utils/`**: Pure functions (`files.go` for search and formatting)
+- **`internal/templates/`**: HTML generation (`html.go` for row templates)
+- **`internal/statics/`**: Embedded CSS/JS/HTML with `//go:embed`
 
-### Estructura del Proyecto
+### State Management
+- **Global state in `upgopher.go`**: `customPaths` map, `sharedClipboard` string, mutexes passed to handlers
+- **Thread-safety pattern**: Use `sync.RWMutex` for read-heavy maps (e.g., `customPathsMutex.RLock()` → copy map → `RUnlock()`)
+- **No app struct**: State passed via function parameters to handler constructors
 
-- `upgopher.go`: Archivo principal que contiene toda la lógica de la aplicación
-- `internal/statics/`: Paquete que gestiona los recursos estáticos embebidos
-  - `statics.go`: Maneja la carga de templates, CSS y JavaScript
-  - `templates/index.html`: Interfaz de usuario principal
-  - `css/styles.css`: Estilos de la aplicación
-  - `js/main.js`: Funcionalidad JavaScript del cliente
+## Critical Security Patterns
 
-### Componentes Principales
+### 1. Path Traversal Prevention (ALWAYS USE)
+```go
+import "github.com/wanetty/upgopher/internal/security"
 
-1. **Sistema de Manejo de Archivos**:
-   - Carga/descarga de archivos con manejo de rutas seguras (`isSafePath`)
-   - Navegación por directorios con codificación base64 para rutas
-   - Generación de archivos ZIP para descarga de directorios completos
+fullPath := filepath.Join(baseDir, userInput)
+isSafe, err := security.IsSafePath(baseDir, fullPath)
+if err != nil || !isSafe {
+    http.Error(w, "Bad path", http.StatusForbidden)
+    return
+}
+```
+**Used in**: All file operations (`files.go`, `custompath.go`, `upgopher.go` legacy handlers)
 
-2. **Interfaz Web**:
-   - UI basada en HTML/CSS/JS con recursos embebidos
-   - Funcionalidad de arrastrar y soltar para carga de archivos
-   - Visualización y ordenación de listas de archivos
+### 2. Base64 Path Encoding
+User-provided paths are **always base64-encoded** in URLs:
+```go
+// Encoding (when generating links)
+encodedPath := base64.StdEncoding.EncodeToString([]byte(relativePath))
 
-3. **Seguridad**:
-   - Autenticación básica opcional (usuario/contraseña)
-   - Soporte para HTTPS con certificados personalizados o autogenerados
-   - Validación de rutas para prevenir path traversal
-
-4. **Funcionalidades Adicionales**:
-   - Portapapeles compartido para intercambiar texto
-   - Búsqueda de texto en archivos
-   - Rutas personalizadas/acortadas para archivos
-   - Opción para mostrar/ocultar archivos ocultos
-
-## Flujos de Trabajo de Desarrollo
-
-### Compilación
-
-El proyecto utiliza GoReleaser para la gestión de compilaciones multiplataforma:
-
-```bash
-# Compilación local simple
-go build
-
-# Compilación con GoReleaser (vista previa)
-goreleaser release --snapshot --clean
+// Decoding (in handlers)
+decodedPath, err := base64.StdEncoding.DecodeString(r.URL.Query().Get("path"))
 ```
 
-### Arquitectura de Handlers HTTP
-
-Los handlers HTTP siguen un patrón común:
+### 3. Directory Deletion Protection
+In delete handlers, **always verify it's a file**:
 ```go
-func customHandler(dir string) http.HandlerFunc {
-  return func(w http.ResponseWriter, r *http.Request) {
-    // Verificación de ruta segura
-    // Lógica del handler
-    // Respuesta HTTP
-  }
+if fileInfo.IsDir() {
+    http.Error(w, "Cannot delete directories", http.StatusForbidden)
+    return
 }
 ```
 
-### Convenciones Importantes
+### 4. Authentication Wrapper
+Routes use conditional auth in `server/router.go`:
+```go
+func registerRoute(pattern string, handler http.Handler, user, pass string) {
+    if user != "" && pass != "" {
+        http.Handle(pattern, security.ApplyBasicAuth(convertToHandlerFunc(handler), user, pass))
+    } else {
+        http.Handle(pattern, handler)
+    }
+}
+```
+**Auth uses constant-time comparison** (`crypto/subtle.ConstantTimeCompare`) in `security/auth.go`.
 
-1. **Codificación de Rutas**: Las rutas de archivo se codifican en base64 para su transferencia segura en URLs:
+### 5. Rate Limiting
+Clipboard endpoint uses IP-based rate limiting (20 req/min):
+```go
+import "github.com/wanetty/upgopher/internal/security"
+
+if !security.CheckRateLimit(extractIP(r)) {
+    http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
+    return
+}
+```
+
+## Development Workflows
+
+### Building & Running
+```bash
+make build      # Compiles to ./upgopher
+make run        # Build + run on :9090
+make run-ssl    # Build + run with self-signed cert
+./upgopher -h   # See all CLI flags
+```
+
+### Testing Strategy
+- **Unit tests** (`upgopher_test.go`): Core functions like `SearchInFile`, `FormatFileSize`
+- **Security tests** (`security_test.go`): Attack vectors (path traversal, race conditions, auth bypass)
+- **Run tests**:
+  ```bash
+  make test           # All tests
+  make test-race      # With race detector (catches mutex issues)
+  make test-coverage  # Generate coverage.out
+  make test-short     # Skip time-based tests (65s rate limit recovery)
+  ```
+- **Coverage goal**: 60%+ overall, 100% for security-critical functions
+
+### Adding New Handlers
+1. Create handler in `internal/handlers/` with struct + constructor pattern:
    ```go
-   encodedPath := base64.StdEncoding.EncodeToString([]byte(filePath))
-   decodedPath, _ := base64.StdEncoding.DecodeString(encodedPath)
+   type MyHandler struct {
+       Dir   string
+       Quite bool
+   }
+   func NewMyHandler(dir string, quite bool) *MyHandler { /* ... */ }
+   func (h *MyHandler) Handle() http.HandlerFunc { /* ... */ }
    ```
-
-2. **Validación de Seguridad**: Todas las rutas de usuario deben validarse con `isSafePath`:
+2. Register in `internal/server/router.go`:
    ```go
-   isSafe, err := isSafePath(dir, fullPath)
-   if err != nil || !isSafe {
-     http.Error(w, "Bad path", http.StatusForbidden)
-     return
+   myHandler := handlers.NewMyHandler(dir, quite)
+   registerRoute("/my-endpoint", myHandler.Handle(), user, pass)
+   ```
+3. Add security tests in `security_test.go` for attack vectors
+
+## Code Conventions
+
+### Logging Pattern
+```go
+if !quite {
+    log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
+}
+```
+**Used in**: All handlers for request/response logging
+
+### Error Responses (NO PATH LEAKAGE)
+❌ **Never expose filesystem paths**:
+```go
+http.Error(w, fmt.Sprintf("File not found: %s", fullPath), 404) // BAD
+```
+✅ **Use sanitized messages**:
+```go
+http.Error(w, "File not found", http.StatusNotFound) // GOOD
+```
+
+### Embedded Assets
+Static files use `//go:embed` in `upgopher.go` and `internal/statics/statics.go`:
+```go
+//go:embed static/favicon.ico
+var favicon embed.FS
+
+// Serve with:
+http.FileServer(http.FS(favicon))
+```
+
+## Common Pitfalls
+
+1. **Forgetting `IsSafePath` validation**: Always call before `os.Open`, `os.Stat`, `filepath.Walk`
+2. **Race conditions on shared maps**: Use `RWMutex` or copy map under lock (see `files.go` `createTable`)
+3. **Testing time-based logic**: Use `testing.Short()` to skip long tests:
+   ```go
+   if testing.Short() {
+       t.Skip("Skipping time-based test")
    }
    ```
+4. **Breaking zero-dependency guarantee**: Only use Go standard library (check `go.mod`)
 
-3. **Manejo de Recursos Estáticos**: Los recursos estáticos se incrustan mediante la directiva `//go:embed`:
-   ```go
-   //go:embed static/favicon.ico
-   var favicon embed.FS
-   ```
+## Project Context
 
-## Puntos de Integración y Extensión
+- **No external dependencies**: `go.mod` only declares `go 1.19`
+- **Single binary**: All assets embedded, no external files needed
+- **Default port**: 9090 (HTTP), 443 (HTTPS with `-ssl`)
+- **Default upload dir**: `./uploads`
+- **Branch**: `refactor/modular-architecture` (post-refactor from monolithic structure)
 
-1. **Añadir Nuevas Funcionalidades HTTP**:
-   - Crear un nuevo handler en `upgopher.go`
-   - Registrarlo en la función `main()`
-   - Considerar la autenticación si está habilitada
+## When Modifying Code
 
-2. **Modificar la Interfaz de Usuario**:
-   - Editar `internal/statics/templates/index.html` para cambios en HTML
-   - Editar `internal/statics/css/styles.css` para cambios en estilo
-   - Editar `internal/statics/js/main.js` para cambios en comportamiento
-
-3. **Ampliar Capacidades de Compilación**:
-   - Modificar `.goreleaser.yml` para configurar opciones de compilación o packaging
-
-## Configuración y Opciones
-
-El servidor admite múltiples flags de línea de comandos para su configuración:
-```
--port int        Puerto del servidor (default 9090)
--dir string      Directorio para almacenar archivos (default "./uploads")
--user string     Usuario para autenticación básica
--pass string     Contraseña para autenticación básica
--ssl             Habilitar HTTPS
--cert string     Ruta al certificado SSL
--key string      Ruta a la clave privada SSL
--q               Modo silencioso (sin logs)
--disable-hidden-files  Deshabilitar mostrar archivos ocultos
-```
+- **Security functions**: Add attack vector test in `security_test.go`
+- **File operations**: Use `t.TempDir()` in tests for isolated filesystem
+- **Concurrency**: Run `make test-race` to catch data races
+- **UI changes**: Update `internal/statics/templates/index.html` or `internal/templates/html.go`
+- **Breaking changes**: Update README.md examples and `-h` flag descriptions
