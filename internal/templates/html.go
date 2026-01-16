@@ -55,7 +55,7 @@ func CreateFolderRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo)
 }
 
 // CreateFileRow generates HTML for a file row in the file listing
-func CreateFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo, customPaths map[string]string, formatFileSize func(int64) (float64, string)) string {
+func CreateFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo, customPaths map[string]string, readOnly bool, formatFileSize func(int64) (float64, string)) string {
 	encodedFilePath := CreateEncodedPath(currentPath, file.Name())
 
 	escapedFileName := html.EscapeString(file.Name())
@@ -77,9 +77,14 @@ func CreateFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo, c
 
 	// Use action-buttons and appropriate button styles
 	downloadLink := fmt.Sprintf(`<button class="action-btn download" title="Download" onclick="window.location.href='/download/?path=%s'"><i class="fa fa-download"></i></button>`, escapedencodedFilePath)
-	deleteLink := fmt.Sprintf(`<button class="action-btn delete" title="Delete" onclick="window.location.href='/delete/?path=%s'"><i class="fa fa-trash"></i></button>`, escapedencodedFilePath)
 	copyURLButton := fmt.Sprintf(`<button class="action-btn link" title="Copy URL" onclick="copyToClipboard('%s', '%s')"><i class="fa fa-link"></i></button>`, currentPath, escapedFileName)
 	customPathButton := fmt.Sprintf(`<button class="action-btn edit" title="Create Custom Path" onclick="showCustomPathForm('%s', '%s')"><i class="fa fa-magic"></i></button>`, escapedFileName, currentPath)
+
+	// Delete button only shown when not in readonly mode
+	deleteLink := ""
+	if !readOnly {
+		deleteLink = fmt.Sprintf(`<button class="action-btn delete" title="Delete" onclick="window.location.href='/delete/?path=%s'"><i class="fa fa-trash"></i></button>`, escapedencodedFilePath)
+	}
 
 	// Search button only for readable files
 	searchButton := ""

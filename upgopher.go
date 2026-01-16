@@ -44,6 +44,7 @@ var quite bool = false
 var version = "1.12.0"
 var showHiddenFiles bool = false
 var disableHiddenFiles bool = false
+var readOnly bool = false
 var sharedClipboard string = ""
 var clipboardMutex sync.Mutex
 
@@ -66,11 +67,16 @@ func main() {
 	keyFile := flag.String("key", "", "private key for HTTPS")
 	quitearg := flag.Bool("q", false, "quite mode")
 	disableHiddenFilesarg := flag.Bool("disable-hidden-files", false, "disable showing hidden files")
+	readOnlyarg := flag.Bool("readonly", false, "readonly mode (disable upload and delete operations)")
 	flag.Parse()
 	quite = *quitearg
+	readOnly = *readOnlyarg
 
 	if !quite {
 		log.Printf("Executing version %s", version)
+		if readOnly {
+			log.Printf("Running in READONLY mode - uploads and deletions are disabled")
+		}
 	}
 
 	if _, err := os.Stat(*dir); os.IsNotExist(err) {
@@ -92,6 +98,7 @@ func main() {
 		*pass,
 		quite,
 		disableHiddenFiles,
+		readOnly,
 		&showHiddenFiles,
 		&customPaths,
 		&customPathsMutex,
@@ -279,7 +286,7 @@ func handleGetRequest(w http.ResponseWriter, _ *http.Request, dir string, curren
 	}
 	backButton := templates.CreateBackButton(currentPath)
 	downloadButton := templates.CreateZipButton(currentPath)
-	w.Write([]byte(statics.GetTemplates(table, backButton, downloadButton, disableHiddenFiles)))
+	w.Write([]byte(statics.GetTemplates(table, backButton, downloadButton, disableHiddenFiles, readOnly)))
 }
 
 func createCustomPathHandler(dir string) http.HandlerFunc {
@@ -342,7 +349,7 @@ func createTable(files []fs.DirEntry, dir string, currentPath string) (string, e
 			table += templates.CreateFolderRow(file, currentPath, fileInfo)
 		} else {
 			customPathsMutex.RLock()
-			table += templates.CreateFileRow(file, currentPath, fileInfo, customPaths, utils.FormatFileSize)
+			table += templates.CreateFileRow(file, currentPath, fileInfo, customPaths, readOnly, utils.FormatFileSize)
 			customPathsMutex.RUnlock()
 		}
 	}

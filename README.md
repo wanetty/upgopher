@@ -24,6 +24,7 @@ This project tries to replace all file servers that use python, since there are 
 * Shared clipboard for cross-device text sharing
 * Zip folder download functionality
 * Option to hide hidden files with the -disable-hidden-files flag
+* Readonly mode to disable uploads and deletions while allowing downloads
 
 
 
@@ -77,6 +78,8 @@ Usage of ./upgopher:
   -port int
         port number (default 9090)
   -q    quite mode
+  -readonly
+        readonly mode (disable upload and delete operations)
   -ssl
         use HTTPS on port 443 by default. (If you don't put cert and key, it will generate a self-signed certificate)
   -user string
@@ -113,6 +116,11 @@ This will start the server on the default port (9090) and store uploaded files i
 **Hide hidden files:**
 ```bash
 ./upgopher -disable-hidden-files
+```
+
+**Readonly mode (disable uploads and deletions):**
+```bash
+./upgopher -readonly
 ```
 
 

@@ -20,6 +20,7 @@ type TemplateData struct {
 	BackButton     template.HTML
 	DownloadButton template.HTML
 	HiddenDisplay  string
+	ReadOnlyMode   bool
 	JavaScript     template.JS
 }
 
@@ -32,7 +33,7 @@ func init() {
 }
 
 // GetTemplates genera el HTML con los recursos embebidos
-func GetTemplates(table string, backButton string, downloadButton string, disableHiddenFiles bool) string {
+func GetTemplates(table string, backButton string, downloadButton string, disableHiddenFiles bool, readOnly bool) string {
 	// Cargar CSS
 	cssBytes, err := fs.ReadFile(staticFiles, "css/styles.css")
 	if err != nil {
@@ -61,6 +62,7 @@ func GetTemplates(table string, backButton string, downloadButton string, disabl
 		BackButton:     template.HTML(backButton),
 		DownloadButton: template.HTML(downloadButton),
 		HiddenDisplay:  hiddenDisplay,
+		ReadOnlyMode:   readOnly,
 		JavaScript:     template.JS(string(jsBytes)),
 	}
 

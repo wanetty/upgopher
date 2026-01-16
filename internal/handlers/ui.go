@@ -11,16 +11,18 @@ import (
 type UIHandlers struct {
 	Quite              bool
 	DisableHiddenFiles bool
+	ReadOnly           bool
 	ShowHiddenFiles    *bool
 	FaviconFS          *embed.FS
 	LogoFS             *embed.FS
 }
 
 // NewUIHandlers creates a new UIHandlers instance
-func NewUIHandlers(quite bool, disableHiddenFiles bool, showHiddenFiles *bool, faviconFS *embed.FS, logoFS *embed.FS) *UIHandlers {
+func NewUIHandlers(quite bool, disableHiddenFiles bool, readOnly bool, showHiddenFiles *bool, faviconFS *embed.FS, logoFS *embed.FS) *UIHandlers {
 	return &UIHandlers{
 		Quite:              quite,
 		DisableHiddenFiles: disableHiddenFiles,
+		ReadOnly:           readOnly,
 		ShowHiddenFiles:    showHiddenFiles,
 		FaviconFS:          faviconFS,
 		LogoFS:             logoFS,

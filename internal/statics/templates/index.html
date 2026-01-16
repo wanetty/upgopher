@@ -60,10 +60,17 @@
                     </table>
                 </div>
 
+                {{ if not .ReadOnlyMode }}
                 <div class="code-box">
                     <div><span class="line-number">1</span>curl -X POST -F "file=@[/path/to/file]" http://[SERVER]:[PORT]/</div>
                 </div>
+                {{ else }}
+                <div class="code-box" style="background-color: #fff3cd; border-color: #ffc107;">
+                    <div><span class="line-number">!</span><strong>READONLY MODE:</strong> File uploads and deletions are disabled</div>
+                </div>
+                {{ end }}
 
+                {{ if not .ReadOnlyMode }}
                 <div id="drop_zone" ondrop="dropHandler(event);" ondragover="dragOverHandler(event);">
                     <h1>Upload a File</h1>
                     <p>Drag and drop files here or use the form below</p>
@@ -92,6 +99,7 @@
                         <span id="upload-eta">ETA: --</span>
                     </div>
                 </div>
+                {{ end }}
 
                 <div class="footer-buttons">
                     <div>

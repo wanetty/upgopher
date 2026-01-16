@@ -16,6 +16,7 @@ func SetupRoutes(
 	pass string,
 	quite bool,
 	disableHiddenFiles bool,
+	readOnly bool,
 	showHiddenFiles *bool,
 	customPaths *map[string]string,
 	customPathsMutex *sync.RWMutex,
@@ -28,10 +29,10 @@ func SetupRoutes(
 	logoFS *embed.FS,
 ) {
 	// Initialize handlers
-	fileHandlers := handlers.NewFileHandlers(dir, quite, disableHiddenFiles, showHiddenFiles, customPaths, customPathsMutex)
+	fileHandlers := handlers.NewFileHandlers(dir, quite, disableHiddenFiles, readOnly, showHiddenFiles, customPaths, customPathsMutex)
 	clipboardHandler := handlers.NewClipboardHandler(quite, sharedClipboard, clipboardMutex)
 	customPathHandler := handlers.NewCustomPathHandler(dir, quite, customPaths, customPathsMutex)
-	uiHandlers := handlers.NewUIHandlers(quite, disableHiddenFiles, showHiddenFiles, faviconFS, logoFS)
+	uiHandlers := handlers.NewUIHandlers(quite, disableHiddenFiles, readOnly, showHiddenFiles, faviconFS, logoFS)
 
 	// Register routes with conditional authentication
 	registerRoute("/", fileHandlers.List(), user, pass)

@@ -26,17 +26,19 @@ type FileHandlers struct {
 	Dir                string
 	Quite              bool
 	DisableHiddenFiles bool
+	ReadOnly           bool
 	ShowHiddenFiles    *bool
 	CustomPaths        *map[string]string
 	CustomPathsMutex   *sync.RWMutex
 }
 
 // NewFileHandlers creates a new FileHandlers instance
-func NewFileHandlers(dir string, quite bool, disableHiddenFiles bool, showHiddenFiles *bool, customPaths *map[string]string, customPathsMutex *sync.RWMutex) *FileHandlers {
+func NewFileHandlers(dir string, quite bool, disableHiddenFiles bool, readOnly bool, showHiddenFiles *bool, customPaths *map[string]string, customPathsMutex *sync.RWMutex) *FileHandlers {
 	return &FileHandlers{
 		Dir:                dir,
 		Quite:              quite,
 		DisableHiddenFiles: disableHiddenFiles,
+		ReadOnly:           readOnly,
 		ShowHiddenFiles:    showHiddenFiles,
 		CustomPaths:        customPaths,
 		CustomPathsMutex:   customPathsMutex,
@@ -173,6 +175,15 @@ func (fh *FileHandlers) Download() http.HandlerFunc {
 // Delete removes a file
 func (fh *FileHandlers) Delete() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Check if readonly mode is enabled
+		if fh.ReadOnly {
+			http.Error(w, "Delete operation is disabled in readonly mode", http.StatusForbidden)
+			if !fh.Quite {
+				log.Printf("[%s] Delete attempt blocked (readonly mode): %s\n", time.Now().Format("2006-01-02 15:04:05"), r.URL.String())
+			}
+			return
+		}
+
 		if !fh.Quite {
 			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
 		}
@@ -314,11 +325,20 @@ func (fh *FileHandlers) handleGetRequest(w http.ResponseWriter, _ *http.Request,
 	}
 	backButton := templates.CreateBackButton(currentPath)
 	downloadButton := templates.CreateZipButton(currentPath)
-	w.Write([]byte(statics.GetTemplates(table, backButton, downloadButton, fh.DisableHiddenFiles)))
+	w.Write([]byte(statics.GetTemplates(table, backButton, downloadButton, fh.DisableHiddenFiles, fh.ReadOnly)))
 }
 
 // handlePostRequest handles file upload
 func (fh *FileHandlers) handlePostRequest(w http.ResponseWriter, r *http.Request, dir string) {
+	// Check if readonly mode is enabled
+	if fh.ReadOnly {
+		http.Error(w, "Upload operation is disabled in readonly mode", http.StatusForbidden)
+		if !fh.Quite {
+			log.Printf("[%s] Upload attempt blocked (readonly mode)\n", time.Now().Format("2006-01-02 15:04:05"))
+		}
+		return
+	}
+
 	file, header, err := r.FormFile("file")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -367,7 +387,7 @@ func (fh *FileHandlers) createTable(files []fs.DirEntry, dir string, currentPath
 				customPathsCopy[k] = v
 			}
 			fh.CustomPathsMutex.RUnlock()
-			table += templates.CreateFileRow(file, currentPath, fileInfo, customPathsCopy, utils.FormatFileSize)
+			table += templates.CreateFileRow(file, currentPath, fileInfo, customPathsCopy, fh.ReadOnly, utils.FormatFileSize)
 		}
 	}
 	return table, nil
