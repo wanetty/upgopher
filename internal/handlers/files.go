@@ -57,9 +57,28 @@ func (fh *FileHandlers) List() http.HandlerFunc {
 		fh.CustomPathsMutex.RLock()
 		for originalPath, customPath := range *fh.CustomPaths {
 			if requestPath == customPath {
-				encodedPath := base64.StdEncoding.EncodeToString([]byte(originalPath))
 				fh.CustomPathsMutex.RUnlock()
-				http.Redirect(w, r, "/?path="+encodedPath, http.StatusMovedPermanently)
+
+				// Serve the file directly for download
+				fullFilePath := filepath.Join(fh.Dir, originalPath)
+
+				// Verify path safety
+				isSafe, err := security.IsSafePath(fh.Dir, fullFilePath)
+				if err != nil || !isSafe {
+					http.Error(w, "Bad path", http.StatusForbidden)
+					return
+				}
+
+				// Check if file exists
+				if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
+					http.Error(w, "File not found", http.StatusNotFound)
+					return
+				}
+
+				// Serve the file with download header
+				_, filename := filepath.Split(fullFilePath)
+				w.Header().Set("Content-Disposition", "attachment; filename="+filename)
+				http.ServeFile(w, r, fullFilePath)
 				return
 			}
 		}
@@ -94,7 +113,7 @@ func (fh *FileHandlers) List() http.HandlerFunc {
 		if r.Method == "GET" {
 			fh.handleGetRequest(w, r, newdir, currentPath)
 		} else if r.Method == "POST" {
-			fh.handlePostRequest(w, r, newdir)
+			fh.handlePostRequest(w, r, newdir, currentPath)
 		} else {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
@@ -329,7 +348,7 @@ func (fh *FileHandlers) handleGetRequest(w http.ResponseWriter, _ *http.Request,
 }
 
 // handlePostRequest handles file upload
-func (fh *FileHandlers) handlePostRequest(w http.ResponseWriter, r *http.Request, dir string) {
+func (fh *FileHandlers) handlePostRequest(w http.ResponseWriter, r *http.Request, dir string, currentPath string) {
 	// Check if readonly mode is enabled
 	if fh.ReadOnly {
 		http.Error(w, "Upload operation is disabled in readonly mode", http.StatusForbidden)
@@ -348,7 +367,7 @@ func (fh *FileHandlers) handlePostRequest(w http.ResponseWriter, r *http.Request
 
 	filename := header.Filename
 	targetPath := filepath.Join(dir, filename)
-	targetFile, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE, 0666)
+	targetFile, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -361,7 +380,13 @@ func (fh *FileHandlers) handlePostRequest(w http.ResponseWriter, r *http.Request
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, r.URL.String(), http.StatusSeeOther)
+
+	// Redirect back to the current directory
+	if currentPath == "" {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	} else {
+		http.Redirect(w, r, "/?path="+currentPath, http.StatusSeeOther)
+	}
 }
 
 // createTable creates HTML table for file listing

@@ -10,10 +10,10 @@ import (
 //go:embed templates css js
 var staticFiles embed.FS
 
-// Template es el template HTML principal
+// indexTemplate is the main HTML template
 var indexTemplate *template.Template
 
-// Estructura para los datos del template
+// TemplateData holds the data for the template
 type TemplateData struct {
 	CSS            template.CSS
 	Table          template.HTML
@@ -28,34 +28,34 @@ func init() {
 	var err error
 	indexTemplate, err = template.ParseFS(staticFiles, "templates/index.html")
 	if err != nil {
-		panic("Error al cargar el template: " + err.Error())
+		panic("Error loading template: " + err.Error())
 	}
 }
 
-// GetTemplates genera el HTML con los recursos embebidos
+// GetTemplates generates HTML with embedded resources
 func GetTemplates(table string, backButton string, downloadButton string, disableHiddenFiles bool, readOnly bool) string {
-	// Cargar CSS
+	// Load CSS
 	cssBytes, err := fs.ReadFile(staticFiles, "css/styles.css")
 	if err != nil {
-		panic("Error al leer CSS: " + err.Error())
+		panic("Error reading CSS: " + err.Error())
 	}
 
-	// Ya no escapamos los porcentajes en CSS para evitar problemas de visualización
+	// CSS percentages are not escaped to avoid display issues
 	cssString := string(cssBytes)
 
-	// Cargar JavaScript
+	// Load JavaScript
 	jsBytes, err := fs.ReadFile(staticFiles, "js/main.js")
 	if err != nil {
-		panic("Error al leer JavaScript: " + err.Error())
+		panic("Error reading JavaScript: " + err.Error())
 	}
 
-	// Configurar la variable de mostrar archivos ocultos
+	// Configure hidden files display setting
 	hiddenDisplay := "display: flex;"
 	if disableHiddenFiles {
 		hiddenDisplay = "display: none;"
 	}
 
-	// Preparar datos para el template
+	// Prepare template data
 	data := TemplateData{
 		CSS:            template.CSS(cssString),
 		Table:          template.HTML(table),
@@ -66,10 +66,10 @@ func GetTemplates(table string, backButton string, downloadButton string, disabl
 		JavaScript:     template.JS(string(jsBytes)),
 	}
 
-	// Renderizar a un string
+	// Render to string
 	builder := &strings.Builder{}
 	if err := indexTemplate.Execute(builder, data); err != nil {
-		panic("Error al renderizar template: " + err.Error())
+		panic("Error rendering template: " + err.Error())
 	}
 
 	return builder.String()

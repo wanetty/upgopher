@@ -1,16 +1,16 @@
 var input = document.getElementById('file-upload');
 
-// Función para escapar HTML y prevenir XSS
+// Function to escape HTML and prevent XSS
 function escapeHtml(str) {
-    // Previene ataques XSS escapando caracteres especiales
+    // Prevents XSS attacks by escaping special characters
     if (str === null || str === undefined) {
         return '';
     }
-    
-    // Asegurarnos de que es string
+
+    // Ensure it's a string
     str = String(str);
-    
-    // Escapar caracteres peligrosos
+
+    // Escape dangerous characters
     return str
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -21,29 +21,29 @@ function escapeHtml(str) {
         .replace(/\\/g, '&#x5C;')
         .replace(/`/g, '&#96;');
 }
-    
+
 // Tab functionality
 function openTab(evt, tabName) {
     var i, tabcontent, tablinks;
-    
+
     // Hide all tab content
     tabcontent = document.getElementsByClassName("tab-content");
     for (i = 0; i < tabcontent.length; i++) {
         tabcontent[i].classList.remove("active");
     }
-    
+
     // Remove "active" class from all tab buttons
     tablinks = document.getElementsByClassName("tab-link");
     for (i = 0; i < tablinks.length; i++) {
         tablinks[i].classList.remove("active");
     }
-    
+
     // Show the current tab and add "active" class to the button that opened the tab
     document.getElementById(tabName).classList.add("active");
     evt.currentTarget.classList.add("active");
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const checkbox = document.getElementById('showAlertCheckbox');
     const clipboardTextarea = document.getElementById('shared-clipboard-textarea');
 
@@ -67,7 +67,7 @@ document.addEventListener('DOMContentLoaded', function() {
     fetch('/showhiddenfiles')
         .then(response => response.json())
         .then(data => {
-            if(data === true) {
+            if (data === true) {
                 checkbox.checked = true;
             } else {
                 checkbox.checked = false;
@@ -77,28 +77,28 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error fetching showHiddenFiles status:', error);
         });
 
-    checkbox.addEventListener('change', function() {
+    checkbox.addEventListener('change', function () {
         fetch('/showhiddenfiles', {
             method: 'POST',
         })
-        .then(data => {
-            window.location.reload();
-        })
-        .catch(error => {
-            console.error('Error:', error);
-        });
+            .then(data => {
+                window.location.reload();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
     });
 
-    // Añadir lógica para mostrar el nombre del archivo seleccionado
-    const fileInput = document.getElementById('file-upload'); // Corregido el ID
-    const fileNameDisplay = document.getElementById('file-name'); // Corregido el ID
+    // Add logic to display the selected file name
+    const fileInput = document.getElementById('file-upload');
+    const fileNameDisplay = document.getElementById('file-name');
 
     if (fileInput && fileNameDisplay) {
-        fileInput.addEventListener('change', function() {
+        fileInput.addEventListener('change', function () {
             if (this.files && this.files.length > 0) {
                 fileNameDisplay.textContent = this.files[0].name;
             } else {
-                fileNameDisplay.textContent = ''; // Limpiar si no hay archivo seleccionado
+                fileNameDisplay.textContent = ''; // Clear if no file selected
             }
         });
     }
@@ -111,7 +111,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function saveToSharedClipboard() {
     const clipboardText = document.getElementById('shared-clipboard-textarea').value;
     console.log('Saving to clipboard:', clipboardText);
-    
+
     fetch('/clipboard', {
         method: 'POST',
         headers: {
@@ -119,28 +119,28 @@ function saveToSharedClipboard() {
         },
         body: clipboardText
     })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Error saving to shared clipboard');
-        }
-        console.log('Clipboard saved successfully');
-        alert('Text saved to shared clipboard successfully');
-    })
-    .catch(error => {
-        console.error('Error saving to clipboard:', error);
-        alert('Error saving to shared clipboard: ' + error.message);
-    });
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Error saving to shared clipboard');
+            }
+            console.log('Clipboard saved successfully');
+            alert('Text saved to shared clipboard successfully');
+        })
+        .catch(error => {
+            console.error('Error saving to clipboard:', error);
+            alert('Error saving to shared clipboard: ' + error.message);
+        });
 }
 
 // Function to copy text from shared clipboard to local clipboard
 function copyFromSharedClipboard() {
     const clipboardText = document.getElementById('shared-clipboard-textarea').value;
-    
+
     if (!clipboardText) {
         alert('No text to copy');
         return;
     }
-    
+
     navigator.clipboard.writeText(clipboardText)
         .then(() => {
             console.log('Text copied to local clipboard');
@@ -148,7 +148,7 @@ function copyFromSharedClipboard() {
         })
         .catch(err => {
             console.error('Error copying text: ', err);
-            
+
             // Alternative implementation for browsers that don't support navigator.clipboard
             try {
                 const textArea = document.createElement('textarea');
@@ -161,7 +161,7 @@ function copyFromSharedClipboard() {
                 textArea.select();
                 const successful = document.execCommand('copy');
                 document.body.removeChild(textArea);
-                
+
                 if (successful) {
                     alert('Text copied to local clipboard');
                 } else {
@@ -216,25 +216,25 @@ function dragOverHandler(ev) {
 function uploadFile(file) {
     uploadTotalSize = file.size;
     uploadStartTime = Date.now();
-    
+
     const formData = new FormData();
     formData.append('file', file);
-    
+
     showUploadProgress();
-    
+
     // Create XMLHttpRequest for progress tracking
     const xhr = new XMLHttpRequest();
-    
+
     // Upload progress event
-    xhr.upload.addEventListener('progress', function(e) {
+    xhr.upload.addEventListener('progress', function (e) {
         if (e.lengthComputable) {
             const percentage = (e.loaded / e.total) * 100;
             updateUploadProgress(e.loaded, e.total, percentage);
         }
     });
-    
+
     // Upload complete event
-    xhr.addEventListener('load', function() {
+    xhr.addEventListener('load', function () {
         if (xhr.status === 200) {
             updateUploadProgress(uploadTotalSize, uploadTotalSize, 100);
             setTimeout(() => {
@@ -256,46 +256,47 @@ function uploadFile(file) {
             alert('Error al subir el archivo: ' + xhr.statusText);
         }
     });
-    
+
     // Upload error event
-    xhr.addEventListener('error', function() {
+    xhr.addEventListener('error', function () {
         hideUploadProgress();
         alert('Error al subir el archivo');
     });
-    
+
     // Upload abort event
-    xhr.addEventListener('abort', function() {
+    xhr.addEventListener('abort', function () {
         hideUploadProgress();
         alert('Subida de archivo cancelada');
     });
-    
-    // Send the request
-    xhr.open('POST', '/');
+
+    // Send the request - preserve current directory path
+    const uploadUrl = '/' + window.location.search;
+    xhr.open('POST', uploadUrl);
     xhr.send(formData);
 }
 
 function copyToClipboard(pathBase64, fileName) {
     const decodedPath = atob(pathBase64);
     const baseUrl = window.location.origin;
-    
+
     // Create a clean path without duplicate slashes
     let path = decodedPath;
-    
+
     // Remove leading slashes in decodedPath if they exist
     while (path.startsWith('/')) {
         path = path.substring(1);
     }
-    
+
     // Ensure slash between path and fileName
     if (path) {
         path = path.endsWith('/') ? path + fileName : path + '/' + fileName;
     } else {
         path = fileName;
     }
-    
+
     // Create the final URL ensuring there's only one slash after /raw/
     const urlWithParam = baseUrl + "/raw/" + path;
-    
+
     navigator.clipboard.writeText(urlWithParam);
 }
 
@@ -328,24 +329,24 @@ function createCustomPath() {
         },
         body: 'originalPath=' + encodeURIComponent(originalPath) + '&customPath=' + encodeURIComponent(customPath)
     })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Invalid path, already used or incompatible format');
-        }
-        return response.text();
-    })
-    .then(result => {
-        alert('Custom path created successfully!\nAccess your file at: ' + window.location.origin + '/' + customPath);
-        closeCustomPathModal();
-        window.location.reload();
-    })
-    .catch(error => {
-        alert('Error creating custom path: ' + error.message);
-    });
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Invalid path, already used or incompatible format');
+            }
+            return response.text();
+        })
+        .then(result => {
+            alert('Custom path created successfully!\nAccess your file at: ' + window.location.origin + '/' + customPath);
+            closeCustomPathModal();
+            window.location.reload();
+        })
+        .catch(error => {
+            alert('Error creating custom path: ' + error.message);
+        });
 }
 
 // Close modal when clicking outside of it
-window.onclick = function(event) {
+window.onclick = function (event) {
     if (event.target == document.getElementById('customPathModal')) {
         closeCustomPathModal();
     }
@@ -355,7 +356,7 @@ window.onclick = function(event) {
 }
 
 // Close modal with Escape key
-document.addEventListener('keydown', function(event) {
+document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') {
         closeCustomPathModal();
         closeSearchModal();
@@ -366,56 +367,56 @@ document.addEventListener('keydown', function(event) {
 let currentFilePath = '';
 
 function showSearchModal(filePath, fileName) {
-    // Validar los parámetros antes de usarlos
+    // Validate parameters before using them
     if (!filePath || typeof filePath !== 'string') {
-        console.error('Error: filePath inválido en showSearchModal');
+        console.error('Error: invalid filePath in showSearchModal');
         return;
     }
-    
-    // Validar que fileName sea una cadena
+
+    // Validate that fileName is a string
     if (!fileName || typeof fileName !== 'string') {
-        fileName = 'archivo';
-        console.error('Error: fileName inválido en showSearchModal');
+        fileName = 'file';
+        console.error('Error: invalid fileName in showSearchModal');
     }
-    
-    // Guardar el path encodado tal cual viene
+
+    // Store the encoded path as received
     currentFilePath = filePath;
-    
-    // Asegurarse de que el nombre del archivo se muestra de forma segura
+
+    // Ensure the file name is displayed safely
     document.getElementById('searchFileName').textContent = escapeHtml(fileName);
-    
+
     document.getElementById('searchTerm').value = '';
     document.getElementById('searchResults').innerHTML = '<div class="placeholder-text">Enter a search term above to find matches</div>';
     document.getElementById('resultCount').textContent = '(0)';
     document.getElementById('searchModal').style.display = 'flex';
     document.body.style.overflow = 'hidden';
-    
+
     const searchInput = document.getElementById('searchTerm');
-    
-    // Limpiar eventos previos para evitar duplicados
+
+    // Clear previous events to avoid duplicates
     const newSearchInput = searchInput.cloneNode(true);
     searchInput.parentNode.replaceChild(newSearchInput, searchInput);
-    
-    // Añadir evento de tecla Enter para iniciar la búsqueda
-    newSearchInput.addEventListener('keypress', function(event) {
+
+    // Add Enter key event to start search
+    newSearchInput.addEventListener('keypress', function (event) {
         if (event.key === 'Enter') {
             event.preventDefault();
             searchInFile();
         }
     });
-    
+
     setTimeout(() => newSearchInput.focus(), 100);
-    
-    // Para depuración - no usar decodeURIComponent aquí pues puede romper
-    // la codificación en base64
-    console.log('Path para búsqueda (no decodificado):', filePath);
+
+    // For debugging - do not use decodeURIComponent here as it may break
+    // the base64 encoding
+    console.log('Search path (not decoded):', filePath);
 }
 
 function closeSearchModal() {
     document.getElementById('searchModal').style.display = 'none';
     document.body.style.overflow = 'auto';
-    
-    // Limpiar variables para liberar memoria y evitar posibles fugas de seguridad
+
+    // Clear variables to free memory and prevent potential security leaks
     currentFilePath = '';
     document.getElementById('searchTerm').value = '';
     document.getElementById('searchResults').innerHTML = '';
@@ -425,76 +426,76 @@ function searchInFile() {
     const searchTerm = document.getElementById('searchTerm').value;
     const caseSensitive = document.getElementById('caseSensitive').checked;
     const wholeWord = document.getElementById('wholeWord').checked;
-    
-    // Validar que tenemos un término de búsqueda
+
+    // Validate that we have a search term
     if (!searchTerm) {
         document.getElementById('searchResults').innerHTML = '<div class="placeholder-text">Enter a search term above to find matches</div>';
         document.getElementById('resultCount').textContent = '(0)';
         return;
     }
-    
-    // Validar que tenemos una ruta de archivo válida
+
+    // Validate that we have a valid file path
     if (!currentFilePath || typeof currentFilePath !== 'string') {
-        document.getElementById('searchResults').innerHTML = '<div class="error-message">Ruta de archivo inválida</div>';
+        document.getElementById('searchResults').innerHTML = '<div class="error-message">Invalid file path</div>';
         document.getElementById('resultCount').textContent = '(0)';
-        console.error('Error: currentFilePath inválido en searchInFile');
+        console.error('Error: invalid currentFilePath in searchInFile');
         return;
     }
-    
-    // Validar el término de búsqueda (no permitir términos muy largos o peligrosos)
+
+    // Validate search term (don't allow very long or dangerous terms)
     if (searchTerm.length > 1000) {
-        document.getElementById('searchResults').innerHTML = '<div class="error-message">El término de búsqueda es demasiado largo</div>';
+        document.getElementById('searchResults').innerHTML = '<div class="error-message">Search term is too long</div>';
         document.getElementById('resultCount').textContent = '(0)';
         return;
     }
-    
-    // Mostrar indicador de carga
+
+    // Show loading indicator
     document.getElementById('searchResults').innerHTML = '<div class="loading-results">Searching...</div>';
-    
-    // Para la búsqueda, utilizamos el path tal cual lo recibimos sin ninguna codificación adicional
-    // Solo aplicamos encodeURIComponent al término de búsqueda y otros parámetros
+
+    // For search, use the path as received without additional encoding
+    // Only apply encodeURIComponent to the search term and other parameters
     const url = `/search-file?path=${encodeURIComponent(currentFilePath)}&term=${encodeURIComponent(searchTerm)}&caseSensitive=${encodeURIComponent(caseSensitive)}&wholeWord=${encodeURIComponent(wholeWord)}`;
-    
-    // Log extensivo para depuración
-    console.log('Ruta original para búsqueda:', currentFilePath);
-    
-    console.log('Enviando solicitud a:', url);
-    
-    // Establecer un tiempo de espera para la solicitud
+
+    // Extensive logging for debugging
+    console.log('Original search path:', currentFilePath);
+
+    console.log('Sending request to:', url);
+
+    // Set request timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos timeout
-    
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 seconds timeout
+
     fetch(url, { signal: controller.signal })
         .then(response => {
             clearTimeout(timeoutId);
-            
+
             if (!response.ok) {
                 console.error('Error HTTP:', response.status, response.statusText);
                 return response.text().then(text => {
-                    throw new Error(`Error en la búsqueda (${response.status}): ${text}`);
+                    throw new Error(`Search error (${response.status}): ${text}`);
                 });
             }
             return response.json();
         })
         .then(results => {
-            // Verificar que los resultados tienen el formato esperado
+            // Verify results have expected format
             if (!Array.isArray(results)) {
-                throw new Error('Formato de respuesta inválido');
+                throw new Error('Invalid response format');
             }
-            
-            console.log('Resultados recibidos:', results);
+
+            console.log('Results received:', results);
             displaySearchResults(searchTerm, results);
         })
         .catch(error => {
             clearTimeout(timeoutId);
-            console.error('Error completo:', error);
-            
-            // Preparar un mensaje de error seguro (escapado)
-            const errorMsg = error.name === 'AbortError' 
-                ? 'La búsqueda tardó demasiado tiempo y se canceló'
-                : `Ha ocurrido un error durante la búsqueda: ${escapeHtml(error.message)}`;
-                
-            document.getElementById('searchResults').innerHTML = 
+            console.error('Complete error:', error);
+
+            // Prepare safe error message (escaped)
+            const errorMsg = error.name === 'AbortError'
+                ? 'Search took too long and was cancelled'
+                : `An error occurred during search: ${escapeHtml(error.message)}`;
+
+            document.getElementById('searchResults').innerHTML =
                 `<div class="error-message">${errorMsg}</div>`;
             document.getElementById('resultCount').textContent = '(0)';
         });
@@ -502,18 +503,18 @@ function searchInFile() {
 
 function displaySearchResults(searchTerm, results) {
     const resultsContainer = document.getElementById('searchResults');
-    
+
     if (results.length === 0) {
         resultsContainer.innerHTML = '<div class="no-results">No matches found</div>';
         document.getElementById('resultCount').textContent = '(0)';
         return;
     }
-    
-    // Verificar si hay un mensaje especial (lineNumber === -1)
+
+    // Check if there's a special message (lineNumber === -1)
     if (results.length === 1 && results[0].lineNumber === -1) {
-        // Asegurar que el contenido esté siempre escapado para prevenir XSS
+        // Ensure content is always escaped to prevent XSS
         const safeContent = escapeHtml(results[0].content);
-        if (safeContent.includes("No se encontraron")) {
+        if (safeContent.includes("No matches")) {
             resultsContainer.innerHTML = '<div class="no-results">' + safeContent + '</div>';
         } else {
             resultsContainer.innerHTML = '<div class="info-message">' + safeContent + '</div>';
@@ -521,26 +522,26 @@ function displaySearchResults(searchTerm, results) {
         document.getElementById('resultCount').textContent = '(0)';
         return;
     }
-    
+
     document.getElementById('resultCount').textContent = `(${results.length})`;
-    
-    // Crear HTML para los resultados
+
+    // Create HTML for results
     let htmlContent = '';
     results.forEach(result => {
-        // Saltar mensajes especiales que pudieran estar al final
+        // Skip special messages that might be at the end
         if (result.lineNumber === -1) {
-            // Asegurar que el contenido especial esté escapado
+            // Ensure special content is escaped
             htmlContent += `<div class="info-message">${escapeHtml(result.content)}</div>`;
             return;
         }
-        
-        // Escapar el número de línea por seguridad (aunque debería ser un número)
-        const safeLineNumber = typeof result.lineNumber === 'number' ? 
+
+        // Escape line number for safety (although it should be a number)
+        const safeLineNumber = typeof result.lineNumber === 'number' ?
             result.lineNumber : escapeHtml(String(result.lineNumber));
-        
-        // Resaltar términos de búsqueda en el contenido (asegurándose que está escapado)
+
+        // Highlight search terms in content (ensuring it's escaped)
         const highlightedContent = highlightSearchTerm(result.content, searchTerm);
-        
+
         htmlContent += `
             <div class="search-result-item">
                 <span class="result-line-number">${safeLineNumber}</span>
@@ -548,38 +549,38 @@ function displaySearchResults(searchTerm, results) {
             </div>
         `;
     });
-    
+
     resultsContainer.innerHTML = htmlContent;
 }
 
 function highlightSearchTerm(text, term) {
-    // Validar parámetros
+    // Validate parameters
     if (!text || typeof text !== 'string') {
-        console.error('Error: texto inválido en highlightSearchTerm');
+        console.error('Error: invalid text in highlightSearchTerm');
         return '';
     }
-    
+
     if (!term || typeof term !== 'string') {
-        console.error('Error: término de búsqueda inválido en highlightSearchTerm');
+        console.error('Error: invalid search term in highlightSearchTerm');
         return escapeHtml(text);
     }
-    
-    // Primero escapamos el texto para prevenir XSS
+
+    // First escape the text to prevent XSS
     const safeText = escapeHtml(text);
-    
-    // Escape caracteres especiales en regex
+
+    // Escape special regex characters
     const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    
+
     try {
         const regex = new RegExp(`(${escapedTerm})`, 'gi');
         return safeText.replace(regex, (match) => `<span class="result-match">${match}</span>`);
     } catch (error) {
-        console.error('Error al resaltar texto:', error);
-        return safeText; // En caso de error, devolver el texto escapado
+        console.error('Error highlighting text:', error);
+        return safeText; // On error, return escaped text
     }
 }
 
-// En una implementación real, esta función haría una solicitud al servidor
+// In a real implementation, this function would make a request to the server
 function fetchFileContent(filePath) {
     return new Promise((resolve, reject) => {
         fetch(`/file-content?path=${filePath}`)
@@ -634,9 +635,9 @@ function sortTable(n, type = 'string') {
 
     document.querySelectorAll("th i").forEach(icon => icon.className = 'fa');
     const iconId = n === 0 ? 'name-icon' :
-                    n === 2 ? 'size-icon' :
-                    n === 3 ? 'modified-icon' :
-                    n === 4 ? 'custom-path-icon' : '';
+        n === 2 ? 'size-icon' :
+            n === 3 ? 'modified-icon' :
+                n === 4 ? 'custom-path-icon' : '';
     if (iconId) {
         const icon = document.getElementById(iconId);
         icon.className = "fa fa-sort-" + (sortOrder === 'asc' ? 'asc' : 'desc');
@@ -651,11 +652,11 @@ function showUploadProgress() {
     const progressContainer = document.getElementById('upload-progress-container');
     const uploadForm = document.getElementById('upload-form');
     const uploadBtn = document.getElementById('upload-btn');
-    
+
     progressContainer.style.display = 'block';
     uploadBtn.disabled = true;
     uploadBtn.value = 'Uploading...';
-    
+
     // Reset progress
     updateUploadProgress(0, 0, 0);
 }
@@ -663,7 +664,7 @@ function showUploadProgress() {
 function hideUploadProgress() {
     const progressContainer = document.getElementById('upload-progress-container');
     const uploadBtn = document.getElementById('upload-btn');
-    
+
     setTimeout(() => {
         progressContainer.style.display = 'none';
         uploadBtn.disabled = false;
@@ -677,25 +678,25 @@ function updateUploadProgress(loaded, total, percentage) {
     const progressText = document.getElementById('upload-progress-text');
     const uploadSpeed = document.getElementById('upload-speed');
     const uploadEta = document.getElementById('upload-eta');
-    
+
     // Update progress bar
     progressFill.style.width = percentage + '%';
     progressPercentage.textContent = Math.round(percentage) + '%';
-    
+
     // Update progress text
     if (percentage === 100) {
         progressText.textContent = 'Upload completed!';
     } else if (percentage > 0) {
         progressText.textContent = 'Uploading...';
     }
-    
+
     // Calculate and display speed and ETA
     if (loaded > 0 && uploadStartTime > 0) {
         const elapsedTime = (Date.now() - uploadStartTime) / 1000; // in seconds
         const speed = loaded / elapsedTime; // bytes per second
         const remainingBytes = total - loaded;
         const eta = remainingBytes / speed; // seconds
-        
+
         // Format speed
         if (speed > 1024 * 1024) {
             uploadSpeed.textContent = (speed / (1024 * 1024)).toFixed(1) + ' MB/s';
@@ -704,7 +705,7 @@ function updateUploadProgress(loaded, total, percentage) {
         } else {
             uploadSpeed.textContent = speed.toFixed(0) + ' B/s';
         }
-        
+
         // Format ETA
         if (eta < 60) {
             uploadEta.textContent = 'ETA: ' + Math.round(eta) + 's';
@@ -730,21 +731,21 @@ function formatFileSize(bytes) {
 function setupFileUpload() {
     const uploadForm = document.getElementById('upload-form');
     const fileInput = document.getElementById('file-upload');
-    
+
     if (!uploadForm || !fileInput) {
         console.error('Upload form or file input not found');
         return;
     }
-    
-    uploadForm.addEventListener('submit', function(e) {
+
+    uploadForm.addEventListener('submit', function (e) {
         e.preventDefault();
-        
+
         const files = fileInput.files;
         if (!files || files.length === 0) {
             alert('Por favor selecciona un archivo');
             return;
         }
-        
+
         const file = files[0];
         uploadFile(file);
     });

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/base64"
 	"log"
 	"net/http"
 	"path/filepath"
@@ -41,7 +40,7 @@ func (cph *CustomPathHandler) Handle() http.HandlerFunc {
 			return
 		}
 
-		currentPath := r.FormValue("currentPath")
+		originalPath := r.FormValue("originalPath")
 		customPath := r.FormValue("customPath")
 
 		// Validate custom path (no special characters)
@@ -61,14 +60,13 @@ func (cph *CustomPathHandler) Handle() http.HandlerFunc {
 		}
 		cph.CustomPathsMutex.RUnlock()
 
-		// Decode original path
-		decodedPath, err := base64.StdEncoding.DecodeString(currentPath)
-		if err != nil {
-			http.Error(w, "Invalid path encoding", http.StatusBadRequest)
+		// Validate original path
+		if originalPath == "" {
+			http.Error(w, "Original path is required", http.StatusBadRequest)
 			return
 		}
 
-		fullPath := filepath.Join(cph.Dir, string(decodedPath))
+		fullPath := filepath.Join(cph.Dir, originalPath)
 		isSafe, err := security.IsSafePath(cph.Dir, fullPath)
 		if err != nil || !isSafe {
 			http.Error(w, "Invalid file path", http.StatusForbidden)
@@ -77,11 +75,11 @@ func (cph *CustomPathHandler) Handle() http.HandlerFunc {
 
 		// Store the custom path
 		cph.CustomPathsMutex.Lock()
-		(*cph.CustomPaths)[string(decodedPath)] = customPath
+		(*cph.CustomPaths)[originalPath] = customPath
 		cph.CustomPathsMutex.Unlock()
 
 		if !cph.Quite {
-			log.Printf("[%s] Custom path created: %s -> %s\n", time.Now().Format("2006-01-02 15:04:05"), customPath, string(decodedPath))
+			log.Printf("[%s] Custom path created: %s -> %s\n", time.Now().Format("2006-01-02 15:04:05"), customPath, originalPath)
 		}
 
 		// Redirect to the custom path

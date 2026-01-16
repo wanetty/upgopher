@@ -274,7 +274,7 @@ func TestFileUpload(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Create FileHandlers instance
-	fh := handlers.NewFileHandlers(tempDir, true, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.List()
 
 	// Create a test file to upload

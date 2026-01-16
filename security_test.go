@@ -109,7 +109,7 @@ func TestDirectoryDeletionPrevention(t *testing.T) {
 	encodedPath := base64.StdEncoding.EncodeToString([]byte("testdir"))
 
 	// Create delete handler
-	fh := handlers.NewFileHandlers(tempDir, true, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.Delete()
 
 	// Create request to delete directory
@@ -237,7 +237,7 @@ func TestRawHandlerPathSecurity(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	fh := handlers.NewFileHandlers(tempDir, true, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.Raw()
 
 	attacks := []string{
@@ -307,7 +307,8 @@ func TestSearchHandlerPathSecurity(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	handler := searchFileHandler(tempDir)
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	handler := fh.Search()
 
 	// Attempt path traversal via search
 	encodedAttack := base64.StdEncoding.EncodeToString([]byte("../../../etc/passwd"))

@@ -58,7 +58,7 @@ func (ch *ClipboardHandler) Handle() http.HandlerFunc {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			w.Write([]byte(clipboard))
 			if !ch.Quite {
-				log.Printf("[%s] Clipboard content returned: '%s'\n", time.Now().Format("2006-01-02 15:04:05"), clipboard)
+				log.Printf("[%s] Clipboard content returned (%d chars)\n", time.Now().Format("2006-01-02 15:04:05"), len(clipboard))
 			}
 		} else if r.Method == http.MethodPost {
 			// Check rate limit before processing POST request
@@ -86,7 +86,7 @@ func (ch *ClipboardHandler) Handle() http.HandlerFunc {
 
 			w.WriteHeader(http.StatusOK)
 			if !ch.Quite {
-				log.Printf("[%s] Clipboard updated to: '%s'\n", time.Now().Format("2006-01-02 15:04:05"), string(body))
+				log.Printf("[%s] Clipboard updated (%d chars)\n", time.Now().Format("2006-01-02 15:04:05"), len(body))
 			}
 		} else {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
