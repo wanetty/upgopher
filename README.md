@@ -4,9 +4,7 @@
 
 [![Go](https://github.com/wanetty/upgopher/actions/workflows/go.yml/badge.svg)](https://github.com/wanetty/upgopher/actions/workflows/go.yml)
 
-This is a simple Go web server that allows users to upload files and view a list of the uploaded files. The server can be run locally or deployed to a remote server.
-
-This project tries to replace all file servers that use python, since there are always problems with libraries. Sometimes we want it to be on a remote pc and go gives you the possibility of cross-platform compilation and to work anywhere...
+Upgopher is a zero-dependency Go web server for file sharing. It provides a browser-based interface for uploading, downloading, and managing files, with optional HTTPS, basic authentication, and read-only mode. Distributed as a single self-contained binary with no external runtime dependencies.
 
 ![Example Photo](./static/example.png)
 ![Example Photo 2](./static/example2.png)
@@ -77,7 +75,7 @@ Usage of ./upgopher:
         password for authentication
   -port int
         port number (default 9090)
-  -q    quite mode
+  -q    quiet mode
   -readonly
         readonly mode (disable upload and delete operations)
   -ssl
@@ -166,9 +164,3 @@ go test -cover ./...
 5. Commit your changes (`git commit -m 'Add amazing feature'`)
 6. Push to the branch (`git push origin feature/amazing-feature`)
 7. Open a Pull Request
-
-
-## Info
-For more information, you can find me on Twitter as [@gm_eduard](https://twitter.com/gm_eduard/).
-
-**Security Contact**: For security issues, please contact [@gm_eduard](https://twitter.com/gm_eduard/) privately.

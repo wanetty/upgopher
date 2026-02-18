@@ -28,13 +28,11 @@ func SetupRoutes(
 	faviconFS *embed.FS,
 	logoFS *embed.FS,
 ) {
-	// Initialize handlers
 	fileHandlers := handlers.NewFileHandlers(dir, quiet, disableHiddenFiles, readOnly, showHiddenFiles, customPaths, customPathsMutex)
 	clipboardHandler := handlers.NewClipboardHandler(quiet, sharedClipboard, clipboardMutex)
 	customPathHandler := handlers.NewCustomPathHandler(dir, quiet, customPaths, customPathsMutex)
 	uiHandlers := handlers.NewUIHandlers(quiet, disableHiddenFiles, readOnly, showHiddenFiles, faviconFS, logoFS)
 
-	// Register routes with conditional authentication
 	registerRoute("/", fileHandlers.List(), user, pass)
 	registerRoute("/download/", http.StripPrefix("/download/", fileHandlers.Download()), user, pass)
 	registerRoute("/delete/", http.StripPrefix("/delete/", fileHandlers.Delete()), user, pass)

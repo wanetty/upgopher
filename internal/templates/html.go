@@ -61,7 +61,6 @@ func CreateFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo, c
 	escapedFileName := html.EscapeString(file.Name())
 	escapedencodedFilePath := html.EscapeString(encodedFilePath)
 
-	// Decode path
 	decodedPath, _ := base64.StdEncoding.DecodeString(currentPath)
 
 	// Search custom path for this file
@@ -72,7 +71,6 @@ func CreateFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo, c
 		customPathDisplay = html.EscapeString(customPath)
 	}
 
-	// Determine if the file is readable (text)
 	isReadableFile := IsTextFile(file.Name())
 
 	// Use action-buttons and appropriate button styles

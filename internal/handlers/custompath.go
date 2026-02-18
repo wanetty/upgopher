@@ -73,7 +73,6 @@ func (cph *CustomPathHandler) Handle() http.HandlerFunc {
 			return
 		}
 
-		// Store the custom path
 		cph.CustomPathsMutex.Lock()
 		(*cph.CustomPaths)[originalPath] = customPath
 		cph.CustomPathsMutex.Unlock()
@@ -82,7 +81,6 @@ func (cph *CustomPathHandler) Handle() http.HandlerFunc {
 			log.Printf("[%s] Custom path created: %s -> %s\n", time.Now().Format("2006-01-02 15:04:05"), customPath, originalPath)
 		}
 
-		// Redirect to the custom path
 		http.Redirect(w, r, "/"+customPath, http.StatusSeeOther)
 	}
 }

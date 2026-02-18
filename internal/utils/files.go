@@ -29,12 +29,10 @@ func FormatFileSize(size int64) (float64, string) {
 // SearchInFile searches for a term in a file with options for case sensitivity and whole word matching
 func SearchInFile(filePath, searchTerm string, caseSensitive, wholeWord bool) ([]SearchResult, error) {
 
-	// Check that the file exists before trying to open it
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("the file does not exist")
 	}
 
-	// Open the file
 	file, err := os.Open(filePath)
 	if err != nil {
 		log.Printf("Error to open file: %v", err)
@@ -42,7 +40,6 @@ func SearchInFile(filePath, searchTerm string, caseSensitive, wholeWord bool) ([
 	}
 	defer file.Close()
 
-	// Create a scanner to read the file line by line
 	scanner := bufio.NewScanner(file)
 	lineNumber := 0
 	var results []SearchResult
@@ -81,12 +78,10 @@ func SearchInFile(filePath, searchTerm string, caseSensitive, wholeWord bool) ([
 		}
 	}
 
-	// Read the file line by line
 	for scanner.Scan() {
 		lineNumber++
 		line := scanner.Text()
 
-		// Check if the line contains the search term
 		if searchFunc(line) {
 			// Limit line length to avoid sending too much data
 			if len(line) > 300 {

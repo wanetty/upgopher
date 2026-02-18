@@ -194,7 +194,6 @@ func (fh *FileHandlers) Download() http.HandlerFunc {
 // Delete removes a file
 func (fh *FileHandlers) Delete() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Check if readonly mode is enabled
 		if fh.ReadOnly {
 			http.Error(w, "Delete operation is disabled in readonly mode", http.StatusForbidden)
 			if !fh.Quiet {
@@ -363,7 +362,6 @@ func (fh *FileHandlers) handleGetRequest(w http.ResponseWriter, _ *http.Request,
 
 // handlePostRequest handles file upload
 func (fh *FileHandlers) handlePostRequest(w http.ResponseWriter, r *http.Request, dir string, currentPath string) {
-	// Check if readonly mode is enabled
 	if fh.ReadOnly {
 		http.Error(w, "Upload operation is disabled in readonly mode", http.StatusForbidden)
 		if !fh.Quiet {
@@ -402,7 +400,6 @@ func (fh *FileHandlers) handlePostRequest(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Redirect back to the current directory
 	if currentPath == "" {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	} else {

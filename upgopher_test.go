@@ -196,17 +196,12 @@ func TestBase64PathEncoding(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Encode
 			encoded := base64.StdEncoding.EncodeToString([]byte(tt.originalPath))
-
-			// Decode
 			decoded, err := base64.StdEncoding.DecodeString(encoded)
 			if err != nil {
 				t.Errorf("Failed to decode base64: %v", err)
 				return
 			}
-
-			// Verify round-trip
 			if string(decoded) != tt.originalPath {
 				t.Errorf("Base64 round-trip failed: got %s, want %s", string(decoded), tt.originalPath)
 			}
@@ -232,7 +227,7 @@ func TestCheckRateLimit(t *testing.T) {
 	}
 }
 
-// TestFormatFileSize tests file size formatting
+// TestFormatFileSizeLogic tests file size formatting
 func TestFormatFileSizeLogic(t *testing.T) {
 	tests := []struct {
 		name      string

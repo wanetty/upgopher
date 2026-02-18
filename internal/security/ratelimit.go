@@ -27,12 +27,12 @@ func CheckRateLimit(ip string) bool {
 
 	// Check if rate limit exceeded
 	if len(recentRequests) >= 20 {
-		return false // rate limit exceeded
+		return false
 	}
 
 	// Add current request timestamp
 	recentRequests = append(recentRequests, now)
 	RateLimiter.Store(ip, recentRequests)
 
-	return true // request allowed
+	return true
 }

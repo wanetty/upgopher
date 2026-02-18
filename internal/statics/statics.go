@@ -34,7 +34,6 @@ func init() {
 
 // GetTemplates generates HTML with embedded resources
 func GetTemplates(table string, backButton string, downloadButton string, disableHiddenFiles bool, readOnly bool) string {
-	// Load CSS
 	cssBytes, err := fs.ReadFile(staticFiles, "css/styles.css")
 	if err != nil {
 		panic("Error reading CSS: " + err.Error())
@@ -43,7 +42,6 @@ func GetTemplates(table string, backButton string, downloadButton string, disabl
 	// CSS percentages are not escaped to avoid display issues
 	cssString := string(cssBytes)
 
-	// Load JavaScript
 	jsBytes, err := fs.ReadFile(staticFiles, "js/main.js")
 	if err != nil {
 		panic("Error reading JavaScript: " + err.Error())
@@ -55,7 +53,6 @@ func GetTemplates(table string, backButton string, downloadButton string, disabl
 		hiddenDisplay = "display: none;"
 	}
 
-	// Prepare template data
 	data := TemplateData{
 		CSS:            template.CSS(cssString),
 		Table:          template.HTML(table),
@@ -66,7 +63,6 @@ func GetTemplates(table string, backButton string, downloadButton string, disabl
 		JavaScript:     template.JS(string(jsBytes)),
 	}
 
-	// Render to string
 	builder := &strings.Builder{}
 	if err := indexTemplate.Execute(builder, data); err != nil {
 		panic("Error rendering template: " + err.Error())

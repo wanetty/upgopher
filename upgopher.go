@@ -27,7 +27,6 @@ var favicon embed.FS
 //go:embed static/logopher.webp
 var logo embed.FS
 
-// global vars
 var quiet bool = false
 var version = "1.13.1"
 var showHiddenFiles bool = false
@@ -39,7 +38,7 @@ var clipboardMutex sync.Mutex
 var customPaths = make(map[string]string) // map[originalPath]customPath
 var customPathsMutex sync.RWMutex         // protects customPaths from concurrent access
 
-// Main /////////////////////////////////////////////////
+// main initializes the server configuration and starts listening.
 func main() {
 	port := flag.Int("port", 9090, "port number")
 	dir := flag.String("dir", "./uploads", "directory path")

@@ -94,7 +94,6 @@ func TestPathTraversalAttacks(t *testing.T) {
 func TestDirectoryDeletionPrevention(t *testing.T) {
 	tempDir := t.TempDir()
 
-	// Create a test directory
 	testSubDir := filepath.Join(tempDir, "testdir")
 	err := os.Mkdir(testSubDir, 0755)
 	if err != nil {
@@ -108,18 +107,14 @@ func TestDirectoryDeletionPrevention(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	// Encode the directory path
 	encodedPath := base64.StdEncoding.EncodeToString([]byte("testdir"))
 
-	// Create delete handler
 	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.Delete()
 
-	// Create request to delete directory
 	req := httptest.NewRequest("GET", "/delete/?path="+encodedPath, nil)
 	w := httptest.NewRecorder()
 
-	// Execute handler
 	handler(w, req)
 
 	// Should return 403 Forbidden
