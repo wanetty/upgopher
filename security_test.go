@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -73,12 +75,13 @@ func TestPathTraversalAttacks(t *testing.T) {
 			}
 
 			if safe {
-				// Check if filepath.Join already normalized this to a safe path
-				if strings.HasPrefix(attackFullPath, tempDir) && !strings.Contains(att.attackPath, "..") {
+				// A "safe" result is only acceptable if filepath.Join already normalized
+				// the attack into a path still within tempDir.
+				resolvedWithinBase := strings.HasPrefix(attackFullPath, tempDir+string(filepath.Separator)) || attackFullPath == tempDir
+				if resolvedWithinBase {
 					t.Logf("Attack '%s' was neutralized by filepath.Join normalization", att.name)
 				} else {
-					t.Logf("Warning: Attack '%s' considered safe after normalization: %s -> %s",
-						att.name, att.attackPath, attackFullPath)
+					t.Errorf("Attack '%s' escaped base directory: IsSafePath returned safe=true for path outside baseDir: %s", att.name, attackFullPath)
 				}
 			} else {
 				t.Logf("Attack '%s' successfully blocked", att.name)
@@ -327,6 +330,55 @@ func TestSearchHandlerPathSecurity(t *testing.T) {
 
 	if w.Code != http.StatusForbidden && w.Code != http.StatusNotFound {
 		t.Errorf("Expected 403 or 404, got %d", w.Code)
+	}
+}
+
+// TestUploadPathTraversal tests that uploaded filenames cannot escape the upload directory
+func TestUploadPathTraversal(t *testing.T) {
+	tempDir := t.TempDir()
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	handler := fh.List()
+
+	maliciousName := "../../outside.txt"
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", maliciousName)
+	if err != nil {
+		t.Fatalf("Failed to create form file: %v", err)
+	}
+	_, _ = part.Write([]byte("malicious content"))
+	writer.Close()
+
+	req := httptest.NewRequest("POST", "/", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	w := httptest.NewRecorder()
+
+	handler(w, req)
+
+	// The file must NOT have been created at the traversal path outside tempDir
+	escapedPath := filepath.Clean(filepath.Join(tempDir, maliciousName))
+	if !strings.HasPrefix(escapedPath, tempDir) {
+		if _, statErr := os.Stat(escapedPath); !os.IsNotExist(statErr) {
+			t.Errorf("Path traversal upload succeeded: file created outside upload dir at %s", escapedPath)
+		}
+	}
+}
+
+// TestZipPathTraversal tests that the zip endpoint cannot traverse outside the base directory
+func TestZipPathTraversal(t *testing.T) {
+	tempDir := t.TempDir()
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	handler := fh.Zip()
+
+	encodedMalicious := base64.StdEncoding.EncodeToString([]byte("../../"))
+	req := httptest.NewRequest("GET", "/zip?path="+encodedMalicious, nil)
+	w := httptest.NewRecorder()
+
+	handler(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("Zip path traversal should return 403 Forbidden, got %d", w.Code)
 	}
 }
 

@@ -13,16 +13,16 @@ import (
 // CustomPathHandler manages custom path creation
 type CustomPathHandler struct {
 	Dir              string
-	Quite            bool
+	Quiet            bool
 	CustomPaths      *map[string]string
 	CustomPathsMutex *sync.RWMutex
 }
 
 // NewCustomPathHandler creates a new CustomPathHandler instance
-func NewCustomPathHandler(dir string, quite bool, customPaths *map[string]string, customPathsMutex *sync.RWMutex) *CustomPathHandler {
+func NewCustomPathHandler(dir string, quiet bool, customPaths *map[string]string, customPathsMutex *sync.RWMutex) *CustomPathHandler {
 	return &CustomPathHandler{
 		Dir:              dir,
-		Quite:            quite,
+		Quiet:            quiet,
 		CustomPaths:      customPaths,
 		CustomPathsMutex: customPathsMutex,
 	}
@@ -31,7 +31,7 @@ func NewCustomPathHandler(dir string, quite bool, customPaths *map[string]string
 // Handle processes custom path creation requests
 func (cph *CustomPathHandler) Handle() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !cph.Quite {
+		if !cph.Quiet {
 			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
 		}
 
@@ -78,7 +78,7 @@ func (cph *CustomPathHandler) Handle() http.HandlerFunc {
 		(*cph.CustomPaths)[originalPath] = customPath
 		cph.CustomPathsMutex.Unlock()
 
-		if !cph.Quite {
+		if !cph.Quiet {
 			log.Printf("[%s] Custom path created: %s -> %s\n", time.Now().Format("2006-01-02 15:04:05"), customPath, originalPath)
 		}
 

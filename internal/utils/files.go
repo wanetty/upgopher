@@ -31,7 +31,7 @@ func SearchInFile(filePath, searchTerm string, caseSensitive, wholeWord bool) ([
 
 	// Check that the file exists before trying to open it
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("the file does not exist: %s", filePath)
+		return nil, fmt.Errorf("the file does not exist")
 	}
 
 	// Open the file

@@ -24,7 +24,7 @@ import (
 // FileHandlers manages file-related HTTP handlers
 type FileHandlers struct {
 	Dir                string
-	Quite              bool
+	Quiet              bool
 	DisableHiddenFiles bool
 	ReadOnly           bool
 	ShowHiddenFiles    *bool
@@ -33,10 +33,10 @@ type FileHandlers struct {
 }
 
 // NewFileHandlers creates a new FileHandlers instance
-func NewFileHandlers(dir string, quite bool, disableHiddenFiles bool, readOnly bool, showHiddenFiles *bool, customPaths *map[string]string, customPathsMutex *sync.RWMutex) *FileHandlers {
+func NewFileHandlers(dir string, quiet bool, disableHiddenFiles bool, readOnly bool, showHiddenFiles *bool, customPaths *map[string]string, customPathsMutex *sync.RWMutex) *FileHandlers {
 	return &FileHandlers{
 		Dir:                dir,
-		Quite:              quite,
+		Quiet:              quiet,
 		DisableHiddenFiles: disableHiddenFiles,
 		ReadOnly:           readOnly,
 		ShowHiddenFiles:    showHiddenFiles,
@@ -48,7 +48,7 @@ func NewFileHandlers(dir string, quite bool, disableHiddenFiles bool, readOnly b
 // List handles the root file listing endpoint
 func (fh *FileHandlers) List() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !fh.Quite {
+		if !fh.Quiet {
 			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
 		}
 
@@ -131,7 +131,7 @@ func (fh *FileHandlers) Raw() http.HandlerFunc {
 		if err != nil || !isSafe {
 			http.Error(w, "Bad path", http.StatusForbidden)
 			return_code = "403"
-			if !fh.Quite {
+			if !fh.Quiet {
 				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, return_code, r.URL.Path, r.RemoteAddr)
 			}
 			return
@@ -141,12 +141,12 @@ func (fh *FileHandlers) Raw() http.HandlerFunc {
 		if os.IsNotExist(err) || fileInfo.IsDir() {
 			http.Error(w, "File not found", http.StatusNotFound)
 			return_code = "404"
-			if !fh.Quite {
+			if !fh.Quiet {
 				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, return_code, r.URL.Path, r.RemoteAddr)
 			}
 			return
 		}
-		if !fh.Quite {
+		if !fh.Quiet {
 			log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, return_code, r.URL.Path, r.RemoteAddr)
 		}
 		http.ServeFile(w, r, fullPath)
@@ -156,7 +156,7 @@ func (fh *FileHandlers) Raw() http.HandlerFunc {
 // Download serves files with attachment header
 func (fh *FileHandlers) Download() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !fh.Quite {
+		if !fh.Quiet {
 			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
 		}
 
@@ -171,7 +171,7 @@ func (fh *FileHandlers) Download() http.HandlerFunc {
 		isSafe, err := security.IsSafePath(fh.Dir, fullFilePath)
 		if err != nil || !isSafe {
 			http.Error(w, "Bad path", http.StatusForbidden)
-			if !fh.Quite {
+			if !fh.Quiet {
 				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, "403", r.URL.Path, r.RemoteAddr)
 			}
 			return
@@ -179,7 +179,7 @@ func (fh *FileHandlers) Download() http.HandlerFunc {
 
 		if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
 			http.Error(w, "File not found", http.StatusNotFound)
-			if !fh.Quite {
+			if !fh.Quiet {
 				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, "404", r.URL.Path, r.RemoteAddr)
 			}
 			return
@@ -197,13 +197,13 @@ func (fh *FileHandlers) Delete() http.HandlerFunc {
 		// Check if readonly mode is enabled
 		if fh.ReadOnly {
 			http.Error(w, "Delete operation is disabled in readonly mode", http.StatusForbidden)
-			if !fh.Quite {
+			if !fh.Quiet {
 				log.Printf("[%s] Delete attempt blocked (readonly mode): %s\n", time.Now().Format("2006-01-02 15:04:05"), r.URL.String())
 			}
 			return
 		}
 
-		if !fh.Quite {
+		if !fh.Quiet {
 			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
 		}
 
@@ -219,7 +219,7 @@ func (fh *FileHandlers) Delete() http.HandlerFunc {
 		isSafe, err := security.IsSafePath(fh.Dir, fullFilePath)
 		if err != nil || !isSafe {
 			http.Error(w, "Bad path", http.StatusForbidden)
-			if !fh.Quite {
+			if !fh.Quiet {
 				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, "403", r.URL.Path, r.RemoteAddr)
 			}
 			return
@@ -228,7 +228,7 @@ func (fh *FileHandlers) Delete() http.HandlerFunc {
 		fileInfo, err := os.Stat(fullFilePath)
 		if os.IsNotExist(err) {
 			http.Error(w, "File not found", http.StatusNotFound)
-			if !fh.Quite {
+			if !fh.Quiet {
 				log.Printf("[%s] [%s - %s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, "404", r.URL.Path, r.RemoteAddr)
 			}
 			return
@@ -237,7 +237,7 @@ func (fh *FileHandlers) Delete() http.HandlerFunc {
 		// Prevent deletion of directories
 		if fileInfo.IsDir() {
 			http.Error(w, "Cannot delete directories", http.StatusForbidden)
-			if !fh.Quite {
+			if !fh.Quiet {
 				log.Printf("[%s] Attempt to delete directory blocked: %s\n", time.Now().Format("2006-01-02 15:04:05"), fullFilePath)
 			}
 			return
@@ -250,7 +250,7 @@ func (fh *FileHandlers) Delete() http.HandlerFunc {
 			return
 		}
 
-		if !fh.Quite {
+		if !fh.Quiet {
 			log.Printf("[%s] File deleted: %s\n", time.Now().Format("2006-01-02 15:04:05"), fullFilePath)
 		}
 
@@ -268,6 +268,21 @@ func (fh *FileHandlers) Delete() http.HandlerFunc {
 func (fh *FileHandlers) Zip() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		currentPath := r.URL.Query().Get("path")
+
+		if currentPath != "" {
+			decodedPath, err := base64.StdEncoding.DecodeString(currentPath)
+			if err != nil {
+				http.Error(w, "Invalid path encoding", http.StatusBadRequest)
+				return
+			}
+			fullPath := filepath.Join(fh.Dir, string(decodedPath))
+			isSafe, err := security.IsSafePath(fh.Dir, fullPath)
+			if err != nil || !isSafe {
+				http.Error(w, "Bad path", http.StatusForbidden)
+				return
+			}
+		}
+
 		zipFilename, err := fh.zipFiles(currentPath)
 		if err != nil {
 			http.Error(w, "Unable to create zip file", http.StatusInternalServerError)
@@ -283,7 +298,9 @@ func (fh *FileHandlers) Zip() http.HandlerFunc {
 // Search searches within text files
 func (fh *FileHandlers) Search() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
+		if !fh.Quiet {
+			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
+		}
 
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -294,9 +311,6 @@ func (fh *FileHandlers) Search() http.HandlerFunc {
 		searchTerm := r.URL.Query().Get("term")
 		caseSensitive := r.URL.Query().Get("caseSensitive") == "true"
 		wholeWord := r.URL.Query().Get("wholeWord") == "true"
-
-		log.Printf("Búsqueda - Path: %s, Término: %s, CaseSensitive: %v, WholeWord: %v",
-			filePath, searchTerm, caseSensitive, wholeWord)
 
 		if filePath == "" || searchTerm == "" {
 			http.Error(w, "Missing required parameters", http.StatusBadRequest)
@@ -352,7 +366,7 @@ func (fh *FileHandlers) handlePostRequest(w http.ResponseWriter, r *http.Request
 	// Check if readonly mode is enabled
 	if fh.ReadOnly {
 		http.Error(w, "Upload operation is disabled in readonly mode", http.StatusForbidden)
-		if !fh.Quite {
+		if !fh.Quiet {
 			log.Printf("[%s] Upload attempt blocked (readonly mode)\n", time.Now().Format("2006-01-02 15:04:05"))
 		}
 		return
@@ -365,8 +379,15 @@ func (fh *FileHandlers) handlePostRequest(w http.ResponseWriter, r *http.Request
 	}
 	defer file.Close()
 
-	filename := header.Filename
+	// Strip any directory components from the filename to prevent path traversal
+	filename := filepath.Base(header.Filename)
 	targetPath := filepath.Join(dir, filename)
+	isSafe, err := security.IsSafePath(dir, targetPath)
+	if err != nil || !isSafe {
+		http.Error(w, "Bad path", http.StatusForbidden)
+		return
+	}
+
 	targetFile, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 
 	if err != nil {

@@ -17,5 +17,8 @@ func IsSafePath(baseDir, userPath string) (bool, error) {
 		return false, err
 	}
 
-	return strings.HasPrefix(absUserPath, absBaseDir), nil
+	// Require separator suffix to prevent false positives where a directory
+	// name is a prefix of another (e.g. /uploads matching /uploads2/file).
+	return absUserPath == absBaseDir ||
+		strings.HasPrefix(absUserPath, absBaseDir+string(filepath.Separator)), nil
 }

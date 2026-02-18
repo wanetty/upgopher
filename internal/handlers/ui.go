@@ -9,7 +9,7 @@ import (
 
 // UIHandlers manages UI-related HTTP handlers (favicon, logo, settings toggle)
 type UIHandlers struct {
-	Quite              bool
+	Quiet              bool
 	DisableHiddenFiles bool
 	ReadOnly           bool
 	ShowHiddenFiles    *bool
@@ -18,9 +18,9 @@ type UIHandlers struct {
 }
 
 // NewUIHandlers creates a new UIHandlers instance
-func NewUIHandlers(quite bool, disableHiddenFiles bool, readOnly bool, showHiddenFiles *bool, faviconFS *embed.FS, logoFS *embed.FS) *UIHandlers {
+func NewUIHandlers(quiet bool, disableHiddenFiles bool, readOnly bool, showHiddenFiles *bool, faviconFS *embed.FS, logoFS *embed.FS) *UIHandlers {
 	return &UIHandlers{
-		Quite:              quite,
+		Quiet:              quiet,
 		DisableHiddenFiles: disableHiddenFiles,
 		ReadOnly:           readOnly,
 		ShowHiddenFiles:    showHiddenFiles,
@@ -50,7 +50,7 @@ func (ui *UIHandlers) Logo() http.HandlerFunc {
 			http.Error(w, "Logo not found", http.StatusNotFound)
 			return
 		}
-		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Content-Type", "image/webp")
 		w.Write(logoData)
 	}
 }
@@ -60,7 +60,7 @@ func (ui *UIHandlers) ToggleHiddenFiles() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Handle GET request - return current hidden files status
 		if r.Method == http.MethodGet {
-			if !ui.Quite {
+			if !ui.Quiet {
 				log.Printf("[%s] Getting hidden files setting: %t\n", time.Now().Format("2006-01-02 15:04:05"), *ui.ShowHiddenFiles)
 			}
 			if *ui.ShowHiddenFiles {
@@ -71,7 +71,7 @@ func (ui *UIHandlers) ToggleHiddenFiles() http.HandlerFunc {
 			}
 		} else if r.Method == http.MethodPost {
 			// Handle POST request - toggle hidden files setting
-			if !ui.Quite {
+			if !ui.Quiet {
 				log.Printf("[%s] Toggling hidden files setting\n", time.Now().Format("2006-01-02 15:04:05"))
 			}
 			if ui.DisableHiddenFiles {

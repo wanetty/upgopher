@@ -28,8 +28,8 @@ var favicon embed.FS
 var logo embed.FS
 
 // global vars
-var quite bool = false
-var version = "1.13.0"
+var quiet bool = false
+var version = "1.13.1"
 var showHiddenFiles bool = false
 var disableHiddenFiles bool = false
 var readOnly bool = false
@@ -48,14 +48,14 @@ func main() {
 	useTLS := flag.Bool("ssl", false, "use HTTPS on port 443 by default. (If you don't put cert and key, it will generate a self-signed certificate)")
 	certFile := flag.String("cert", "", "HTTPS certificate")
 	keyFile := flag.String("key", "", "private key for HTTPS")
-	quitearg := flag.Bool("q", false, "quite mode")
+	quietarg := flag.Bool("q", false, "quiet mode")
 	disableHiddenFilesarg := flag.Bool("disable-hidden-files", false, "disable showing hidden files")
 	readOnlyarg := flag.Bool("readonly", false, "readonly mode (disable upload and delete operations)")
 	flag.Parse()
-	quite = *quitearg
+	quiet = *quietarg
 	readOnly = *readOnlyarg
 
-	if !quite {
+	if !quiet {
 		log.Printf("Executing version %s", version)
 		if readOnly {
 			log.Printf("Running in READONLY mode - uploads and deletions are disabled")
@@ -79,7 +79,7 @@ func main() {
 		*dir,
 		*user,
 		*pass,
-		quite,
+		quiet,
 		disableHiddenFiles,
 		readOnly,
 		&showHiddenFiles,
@@ -131,7 +131,7 @@ func startServer(addr string, useTLS bool, certFile, keyFile string, _ int) {
 			IdleTimeout:  120 * time.Second,
 		}
 
-		if !quite {
+		if !quiet {
 			log.Printf("[%s] Starting HTTPS server on %s", time.Now().Format("2006-01-02 15:04:05"), addr)
 		}
 		if err := server.ListenAndServeTLS("", ""); err != nil {
@@ -145,7 +145,7 @@ func startServer(addr string, useTLS bool, certFile, keyFile string, _ int) {
 			IdleTimeout:  120 * time.Second,
 		}
 
-		if !quite {
+		if !quiet {
 			log.Printf("[%s] Starting HTTP server on %s", time.Now().Format("2006-01-02 15:04:05"), addr)
 		}
 		if err := server.ListenAndServe(); err != nil {

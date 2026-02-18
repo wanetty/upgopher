@@ -62,6 +62,13 @@ func TestIsSafePath(t *testing.T) {
 			want:     false,
 			wantErr:  false,
 		},
+		{
+			name:     "same prefix but different directory",
+			baseDir:  tempDir,
+			userPath: tempDir + "2/file.txt",
+			want:     false,
+			wantErr:  false,
+		},
 	}
 
 	for _, tt := range tests {
