@@ -898,3 +898,319 @@ td a:hover {
         font-size: 14px;
     }
 }
+
+/* ── Clipboard multi-tab bar ──────────────────────────────────────────────── */
+.clipboard-tabs-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 25px 0;
+    background: #f0f0f0;
+    border-bottom: 1px solid #ddd;
+    flex-wrap: wrap;
+}
+
+#clipboard-tabs-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex: 1;
+}
+
+.clipboard-tab-item {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 4px 4px 0 0;
+    background: #e0e0e0;
+    transition: background 0.2s;
+}
+
+.clipboard-tab-item.active {
+    background: #009879;
+}
+
+.clipboard-tab-label {
+    padding: 6px 12px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    color: #555;
+    border-radius: 4px 4px 0 0;
+}
+
+.clipboard-tab-item.active .clipboard-tab-label {
+    color: white;
+}
+
+.clipboard-tab-close {
+    padding: 4px 6px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    opacity: 0.6;
+    color: inherit;
+    line-height: 1;
+}
+
+.clipboard-tab-item.active .clipboard-tab-close {
+    color: white;
+}
+
+.clipboard-tab-close:hover {
+    opacity: 1;
+}
+
+.clipboard-tab-add {
+    padding: 6px 10px;
+    background: #e0e0e0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #555;
+    margin-left: auto;
+    transition: background 0.2s, color 0.2s;
+}
+
+.clipboard-tab-add:hover {
+    background: #009879;
+    color: white;
+}
+
+/* New tab input row */
+#new-tab-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 25px;
+    background: #f9f9f9;
+    border-bottom: 1px solid #ddd;
+}
+
+#new-tab-name {
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 13px;
+    flex: 1;
+}
+
+#new-tab-name:focus {
+    outline: none;
+    border-color: #009879;
+    box-shadow: 0 0 0 2px rgba(0, 152, 121, 0.15);
+}
+
+.btn-sm {
+    padding: 6px 10px;
+    font-size: 13px;
+}
+
+/* Metadata bar below textarea */
+.clipboard-meta {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 0 0;
+    font-size: 12px;
+    color: #999;
+}
+
+/* ── Token protection UI ─────────────────────────────────────────────────── */
+
+/* Lock checkbox in new-tab row */
+.token-protect-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #777;
+    padding: 4px 6px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    user-select: none;
+    transition: border-color 0.2s, color 0.2s;
+}
+
+.token-protect-label:has(input:checked) {
+    border-color: #009879;
+    color: #009879;
+}
+
+.token-protect-label input[type="checkbox"] {
+    display: none;
+}
+
+/* Lock icon on protected tabs */
+.tab-lock-icon {
+    font-size: 10px;
+    margin-right: 4px;
+    opacity: 0.7;
+}
+
+/* Token unlock inline row */
+.token-unlock-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 25px;
+    background: #fff8e1;
+    border-bottom: 1px solid #ffe082;
+    font-size: 13px;
+    color: #555;
+}
+
+.token-unlock-row i.fa-lock {
+    color: #e67e22;
+}
+
+#token-unlock-input {
+    padding: 6px 10px;
+    border: 1px solid #ffe082;
+    border-radius: 4px;
+    font-size: 13px;
+    flex: 1;
+    background: white;
+}
+
+#token-unlock-input:focus {
+    outline: none;
+    border-color: #e67e22;
+    box-shadow: 0 0 0 2px rgba(230, 126, 34, 0.15);
+}
+
+/* Forget token button */
+.btn-forget-token {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    background: none;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    cursor: pointer;
+    color: #999;
+    margin-left: auto;
+    transition: color 0.2s, border-color 0.2s;
+}
+
+.btn-forget-token:hover {
+    color: #e74c3c;
+    border-color: #e74c3c;
+}
+
+/* Token reveal modal */
+.token-modal {
+    max-width: 480px;
+}
+
+.token-reveal-body {
+    padding: 16px 24px;
+}
+
+.token-reveal-warning {
+    color: #e67e22;
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+
+.token-reveal-warning i {
+    margin-right: 4px;
+}
+
+.token-display-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px 12px;
+}
+
+.token-display-row code {
+    flex: 1;
+    font-family: monospace;
+    font-size: 13px;
+    word-break: break-all;
+    color: #333;
+    user-select: all;
+}
+
+/* Inline delete confirmation */
+.clipboard-tab-confirm {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding-right: 4px;
+}
+
+.clipboard-tab-confirm-yes,
+.clipboard-tab-confirm-no {
+    padding: 2px 5px;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.clipboard-tab-confirm-yes {
+    background: #e74c3c;
+    color: white;
+}
+
+.clipboard-tab-confirm-no {
+    background: #ccc;
+    color: #333;
+}
+
+/* ── Toast notifications ──────────────────────────────────────────────────── */
+.toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.toast {
+    padding: 12px 20px;
+    border-radius: 6px;
+    color: white;
+    font-size: 14px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    animation: toastIn 0.3s ease-out;
+    max-width: 300px;
+    pointer-events: auto;
+}
+
+.toast.success {
+    background-color: #009879;
+}
+
+.toast.error {
+    background-color: #e74c3c;
+}
+
+.toast.hiding {
+    animation: toastOut 0.3s ease-in forwards;
+}
+
+@keyframes toastIn {
+    from { transform: translateX(120%); opacity: 0; }
+    to   { transform: translateX(0);    opacity: 1; }
+}
+
+@keyframes toastOut {
+    from { transform: translateX(0);    opacity: 1; }
+    to   { transform: translateX(120%); opacity: 0; }
+}

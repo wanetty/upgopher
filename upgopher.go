@@ -32,8 +32,6 @@ var version = "1.13.1"
 var showHiddenFiles bool = false
 var disableHiddenFiles bool = false
 var readOnly bool = false
-var sharedClipboard string = ""
-var clipboardMutex sync.Mutex
 
 var customPaths = make(map[string]string) // map[originalPath]customPath
 var customPathsMutex sync.RWMutex         // protects customPaths from concurrent access
@@ -50,6 +48,7 @@ func main() {
 	quietarg := flag.Bool("q", false, "quiet mode")
 	disableHiddenFilesarg := flag.Bool("disable-hidden-files", false, "disable showing hidden files")
 	readOnlyarg := flag.Bool("readonly", false, "readonly mode (disable upload and delete operations)")
+	maxTabs := flag.Int("max-tabs", 10, "maximum number of shared clipboard tabs")
 	flag.Parse()
 	quiet = *quietarg
 	readOnly = *readOnlyarg
@@ -81,11 +80,10 @@ func main() {
 		quiet,
 		disableHiddenFiles,
 		readOnly,
+		*maxTabs,
 		&showHiddenFiles,
 		&customPaths,
 		&customPathsMutex,
-		&sharedClipboard,
-		&clipboardMutex,
 		&favicon,
 		&logo,
 	)

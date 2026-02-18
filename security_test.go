@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -288,7 +289,7 @@ func TestClipboardRateLimitRecovery(t *testing.T) {
 	t.Log("Waiting for rate limit window to reset (65 seconds)...")
 	time.Sleep(65 * time.Second)
 
-	// Should be able to make requests again
+	// Should be able to make requests again (?tab=default route)
 	if !security.CheckRateLimit(testIP) {
 		t.Error("Rate limit should have reset after time window")
 	}
@@ -374,6 +375,168 @@ func TestZipPathTraversal(t *testing.T) {
 
 	if w.Code != http.StatusForbidden {
 		t.Errorf("Zip path traversal should return 403 Forbidden, got %d", w.Code)
+	}
+}
+
+// TestClipboardTabNameInjection tests that malicious tab names are rejected by the handler.
+func TestClipboardTabNameInjection(t *testing.T) {
+	ch := handlers.NewClipboardHandler(true, 20)
+	handle := ch.Handle()
+
+	attacks := []struct {
+		name    string
+		tabName string
+	}{
+		{"xss script tag", "<script>alert(1)</script>"},
+		{"xss img onerror", `<img src=x onerror=alert(1)>`},
+		{"path traversal", "../../../etc/passwd"},
+		{"sql injection", "'; DROP TABLE tabs;--"},
+		{"null byte", "tab\x00name"},
+		{"long name", strings.Repeat("a", 200)},
+		{"unicode bypass", "\u003cscript\u003e"},
+		{"shell injection", "$(rm -rf /)"},
+	}
+
+	for _, att := range attacks {
+		t.Run(att.name, func(t *testing.T) {
+			// url.Values ensures the name is percent-encoded so httptest.NewRequest
+			// doesn't panic; the server decodes it before regex validation.
+			params := url.Values{"tab": {att.tabName}}
+			req := httptest.NewRequest("POST", "/clipboard?"+params.Encode(), strings.NewReader("x"))
+			req.RemoteAddr = "192.168.0.1:11111"
+			w := httptest.NewRecorder()
+			handle(w, req)
+
+			if w.Code == http.StatusOK {
+				t.Errorf("injection attack %q was accepted (expected 400)", att.name)
+			}
+		})
+	}
+}
+
+// TestClipboardMaxTabsExhaustion tests exhaustion with maxTabs+1 creates from concurrent goroutines.
+func TestClipboardMaxTabsExhaustion(t *testing.T) {
+	const maxTabs = 5
+	ch := handlers.NewClipboardHandler(true, maxTabs)
+	handle := ch.Handle()
+
+	// Create maxTabs-1 extra tabs (default already occupies 1 slot)
+	for i := 0; i < maxTabs-1; i++ {
+		name := fmt.Sprintf("tab%d", i)
+		req := httptest.NewRequest("POST", "/clipboard?tab="+name, strings.NewReader("x"))
+		req.RemoteAddr = "10.1.0.1:9999"
+		w := httptest.NewRecorder()
+		handle(w, req)
+		if w.Code != http.StatusCreated {
+			t.Fatalf("creating %q: expected 201, got %d: %s", name, w.Code, w.Body.String())
+		}
+	}
+
+	// Next create must hit the cap
+	req := httptest.NewRequest("POST", "/clipboard?tab=overflow", strings.NewReader("x"))
+	req.RemoteAddr = "10.1.0.1:9999"
+	w := httptest.NewRecorder()
+	handle(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403 at maxTabs cap, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestClipboardConcurrentTabCreation races concurrent goroutines each creating a unique tab.
+func TestClipboardConcurrentTabCreation(t *testing.T) {
+	ch := handlers.NewClipboardHandler(true, 100)
+	handle := ch.Handle()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 30; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			name := fmt.Sprintf("concurrent-%d", n)
+			req := httptest.NewRequest("POST", "/clipboard?tab="+name, strings.NewReader("data"))
+			req.RemoteAddr = fmt.Sprintf("10.2.0.%d:8080", n%254+1)
+			w := httptest.NewRecorder()
+			handle(w, req)
+		}(i)
+	}
+	wg.Wait()
+
+	// Verify all tabs are accessible without panic
+	req := httptest.NewRequest("GET", "/clipboard/tabs", nil)
+	w := httptest.NewRecorder()
+	ch.ListTabs()(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("ListTabs after concurrent writes: expected 200, got %d", w.Code)
+	}
+}
+
+// TestClipboardTokenTimingAttack verifies that wrong-token responses take roughly
+// the same time as correct-token responses (constant-time compare).
+func TestClipboardTokenTimingAttack(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping timing-sensitive test in short mode")
+	}
+
+	const iterations = 500
+	ch := handlers.NewClipboardHandler(true, 10)
+	handle := ch.Handle()
+
+	// Create a protected tab and capture the token.
+	setupReq := httptest.NewRequest("POST", "/clipboard?tab=timing-test", strings.NewReader("x"))
+	setupReq.RemoteAddr = "127.0.0.1:10101"
+	setupReq.Header.Set("X-Tab-Token-Create", "1")
+	setupW := httptest.NewRecorder()
+	handle(setupW, setupReq)
+	if setupW.Code != 201 {
+		t.Fatalf("setup failed: %d", setupW.Code)
+	}
+	correctToken := setupW.Header().Get("X-Generated-Token")
+	wrongToken := strings.Repeat("b", 64)
+
+	measure := func(token string) time.Duration {
+		start := time.Now()
+		for i := 0; i < iterations; i++ {
+			req := httptest.NewRequest("GET", "/clipboard?tab=timing-test", nil)
+			req.Header.Set("X-Tab-Token", token)
+			w := httptest.NewRecorder()
+			handle(w, req)
+		}
+		return time.Since(start)
+	}
+
+	correctTime := measure(correctToken)
+	wrongTime := measure(wrongToken)
+
+	// Allow 10× variance — the constant-time compare itself is negligible vs HTTP overhead,
+	// but a timing leak would show orders-of-magnitude difference.
+	ratio := float64(correctTime) / float64(wrongTime)
+	if ratio > 10 || ratio < 0.1 {
+		t.Errorf("timing ratio correct/wrong = %.2f — potential timing leak", ratio)
+	}
+}
+
+// TestClipboardTokenOversizedInput verifies that a very long token header does not panic.
+func TestClipboardTokenOversizedInput(t *testing.T) {
+	ch := handlers.NewClipboardHandler(true, 10)
+	handle := ch.Handle()
+
+	// Create a protected tab.
+	setupReq := httptest.NewRequest("POST", "/clipboard?tab=oversize", strings.NewReader("x"))
+	setupReq.RemoteAddr = "127.0.0.1:10202"
+	setupReq.Header.Set("X-Tab-Token-Create", "1")
+	setupW := httptest.NewRecorder()
+	handle(setupW, setupReq)
+	if setupW.Code != 201 {
+		t.Fatalf("setup failed: %d", setupW.Code)
+	}
+
+	// Send a 1 MB token header — must return 401 cleanly, not panic.
+	req := httptest.NewRequest("GET", "/clipboard?tab=oversize", nil)
+	req.Header.Set("X-Tab-Token", strings.Repeat("a", 1<<20))
+	w := httptest.NewRecorder()
+	handle(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for oversized token, got %d", w.Code)
 	}
 }
 

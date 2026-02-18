@@ -118,10 +118,46 @@
                         <i class="fa fa-clipboard"></i>
                         <h2>Shared Clipboard</h2>
                     </div>
-                    
+
+                    <!-- Multi-tab bar -->
+                    <div class="clipboard-tabs-bar">
+                        <div id="clipboard-tabs-list"></div>
+                        <button class="clipboard-tab-add" onclick="showNewTabInput()" title="New tab">
+                            <i class="fa fa-plus"></i>
+                        </button>
+                    </div>
+
+                    <!-- New tab input row (hidden by default) -->
+                    <div id="new-tab-input-row" style="display:none;">
+                        <input type="text" id="new-tab-name" placeholder="Tab name (max 50 chars)" maxlength="50">
+                        <label class="token-protect-label" title="Generate a token to restrict read/write access to this tab">
+                            <input type="checkbox" id="new-tab-protect">
+                            <i class="fa fa-lock"></i>
+                        </label>
+                        <button class="btn btn-sm" onclick="createClipboardTab()"><i class="fa fa-check"></i></button>
+                        <button class="btn btn-secondary btn-sm" onclick="hideNewTabInput()"><i class="fa fa-times"></i></button>
+                    </div>
+
+                    <!-- Token unlock row (shown when selecting a protected tab without cached token) -->
+                    <div id="token-unlock-row" class="token-unlock-row" style="display:none;">
+                        <i class="fa fa-lock"></i>
+                        <span>Protected tab — enter token to unlock:</span>
+                        <input type="password" id="token-unlock-input" placeholder="Paste token here">
+                        <button class="btn btn-sm" onclick="submitTabToken()"><i class="fa fa-unlock"></i></button>
+                        <button class="btn btn-secondary btn-sm" onclick="hideTokenUnlockRow()"><i class="fa fa-times"></i></button>
+                    </div>
+
                     <div class="clipboard-content">
                         <textarea id="shared-clipboard-textarea" placeholder="Paste your text here to share it..."></textarea>
-                        
+
+                        <div class="clipboard-meta">
+                            <span id="clipboard-char-count">chars: 0</span>
+                            <span id="clipboard-updated">updated: --</span>
+                            <button id="forget-token-btn" class="btn-forget-token" style="display:none;" onclick="forgetTabToken()" title="Forget the cached token for this tab">
+                                <i class="fa fa-lock"></i> Forget token
+                            </button>
+                        </div>
+
                         <div class="clipboard-actions">
                             <button id="copy-from-clipboard" class="btn btn-secondary" onclick="copyFromSharedClipboard()">
                                 <i class="fa fa-clipboard"></i> Copy to clipboard
@@ -205,6 +241,33 @@
             </div>
         </div>
         
+        <!-- Token Reveal Modal (shown once when a protected tab is created) -->
+        <div id="tokenRevealModal" class="modal-overlay" style="display:none;">
+            <div class="modal token-modal">
+                <div class="modal-header">
+                    <h2 class="modal-title"><i class="fa fa-lock"></i> Tab Protected</h2>
+                </div>
+                <div class="token-reveal-body">
+                    <p class="token-reveal-warning">
+                        <i class="fa fa-exclamation-triangle"></i>
+                        Save this token — it will <strong>not</strong> be shown again.
+                    </p>
+                    <div class="token-display-row">
+                        <code id="token-reveal-value"></code>
+                        <button class="btn btn-sm" onclick="copyGeneratedToken()" title="Copy token">
+                            <i class="fa fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-modal btn-create" onclick="closeTokenRevealModal()">I've saved it</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast notifications -->
+        <div id="toast-container" class="toast-container"></div>
+
         <script>
             {{ .JavaScript }}
         </script>

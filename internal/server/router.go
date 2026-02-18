@@ -17,19 +17,15 @@ func SetupRoutes(
 	quiet bool,
 	disableHiddenFiles bool,
 	readOnly bool,
+	maxTabs int,
 	showHiddenFiles *bool,
 	customPaths *map[string]string,
 	customPathsMutex *sync.RWMutex,
-	sharedClipboard *string,
-	clipboardMutex interface {
-		Lock()
-		Unlock()
-	},
 	faviconFS *embed.FS,
 	logoFS *embed.FS,
 ) {
 	fileHandlers := handlers.NewFileHandlers(dir, quiet, disableHiddenFiles, readOnly, showHiddenFiles, customPaths, customPathsMutex)
-	clipboardHandler := handlers.NewClipboardHandler(quiet, sharedClipboard, clipboardMutex)
+	clipboardHandler := handlers.NewClipboardHandler(quiet, maxTabs)
 	customPathHandler := handlers.NewCustomPathHandler(dir, quiet, customPaths, customPathsMutex)
 	uiHandlers := handlers.NewUIHandlers(quiet, disableHiddenFiles, readOnly, showHiddenFiles, faviconFS, logoFS)
 
@@ -39,6 +35,7 @@ func SetupRoutes(
 	registerRoute("/raw/", http.StripPrefix("/raw/", fileHandlers.Raw()), user, pass)
 	registerRoute("/zip", fileHandlers.Zip(), user, pass)
 	registerRoute("/search-file", fileHandlers.Search(), user, pass)
+	registerRoute("/clipboard/tabs", clipboardHandler.ListTabs(), user, pass)
 	registerRoute("/clipboard", clipboardHandler.Handle(), user, pass)
 	registerRoute("/custom-path", customPathHandler.Handle(), user, pass)
 	registerRoute("/showhiddenfiles", uiHandlers.ToggleHiddenFiles(), user, pass)
