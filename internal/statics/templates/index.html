@@ -153,8 +153,11 @@
                         <div class="clipboard-meta">
                             <span id="clipboard-char-count">chars: 0</span>
                             <span id="clipboard-updated">updated: --</span>
-                            <button id="forget-token-btn" class="btn-forget-token" style="display:none;" onclick="forgetTabToken()" title="Forget the cached token for this tab">
-                                <i class="fa fa-lock"></i> Forget token
+                            <button id="refresh-clipboard-btn" class="btn-refresh-clipboard" onclick="refreshClipboardTab()" title="Refresh clipboard content">
+                                <i class="fa fa-refresh"></i>
+                            </button>
+                            <button id="forget-token-btn" class="btn-forget-token" style="display:none;" onclick="forgetTabToken()" title="Lock this tab (clears the cached token — you will need to enter it again)">
+                                <i class="fa fa-lock"></i> Lock tab
                             </button>
                         </div>
 

@@ -133,6 +133,7 @@ function saveToSharedClipboard() {
     })
         .then(function (response) {
             if (response.status === 401) {
+                setClipboardEditable(false);
                 showTokenUnlockRow(currentClipboardTab, function () { saveToSharedClipboard(); });
                 return;
             }
@@ -851,6 +852,7 @@ function selectClipboardTab(name) {
             if (r.status === 401) {
                 document.getElementById('shared-clipboard-textarea').value = '';
                 document.getElementById('clipboard-char-count').textContent = 'chars: 0';
+                setClipboardEditable(false);
                 showTokenUnlockRow(name, function () { selectClipboardTab(name); });
                 return null;
             }
@@ -861,6 +863,7 @@ function selectClipboardTab(name) {
             if (content === null || content === undefined) return;
             if (seq !== _tabSelectionSeq) return; // stale response
             hideTokenUnlockRow();
+            setClipboardEditable(true);
             document.getElementById('shared-clipboard-textarea').value = content;
             document.getElementById('clipboard-char-count').textContent = 'chars: ' + content.length;
             var entry = clipboardTabsCache.find(function (t) { return t.name === name; });
@@ -920,6 +923,7 @@ function createClipboardTab() {
             // via currentClipboardTab, so no extra selectClipboardTab call is needed.
             document.getElementById('shared-clipboard-textarea').value = '';
             document.getElementById('clipboard-char-count').textContent = 'chars: 0';
+            setClipboardEditable(true);
             loadClipboardTabs(false);
             if (generatedToken) {
                 showTokenRevealModal(generatedToken, name);
@@ -993,6 +997,31 @@ function deleteClipboardTab(name) {
 // ── Token management ──────────────────────────────────────────────────────────
 var _tokenUnlockCallback = null;
 
+function setClipboardEditable(editable) {
+    var ta = document.getElementById('shared-clipboard-textarea');
+    if (!ta) return;
+    ta.disabled = !editable;
+    if (editable) {
+        ta.classList.remove('clipboard-locked');
+        ta.placeholder = 'Paste your text here to share it...';
+    } else {
+        ta.classList.add('clipboard-locked');
+        ta.placeholder = 'Enter the token above to be able to write here...';
+    }
+}
+
+function refreshClipboardTab() {
+    var btn = document.getElementById('refresh-clipboard-btn');
+    var icon = btn ? btn.querySelector('i') : null;
+    if (icon) icon.classList.add('spinning');
+    var prevSeq = _tabSelectionSeq;
+    selectClipboardTab(currentClipboardTab);
+    // Remove spinning class after a short delay to cover the fetch duration
+    setTimeout(function () {
+        if (icon) icon.classList.remove('spinning');
+    }, 600);
+}
+
 function showTokenUnlockRow(tabName, callback) {
     _tokenUnlockCallback = callback;
     _tokenUnlockTabName  = tabName; // remember which tab triggered this row
@@ -1025,6 +1054,7 @@ function forgetTabToken() {
     delete clipboardTokenCache[currentClipboardTab];
     document.getElementById('shared-clipboard-textarea').value = '';
     document.getElementById('clipboard-char-count').textContent = 'chars: 0';
+    setClipboardEditable(false);
     var entry = clipboardTabsCache.find(function (t) { return t.name === currentClipboardTab; });
     if (entry && entry.protected) {
         showTokenUnlockRow(currentClipboardTab, function () { selectClipboardTab(currentClipboardTab); });

@@ -1104,6 +1104,45 @@ td a:hover {
     border-color: #e74c3c;
 }
 
+/* Refresh clipboard button */
+.btn-refresh-clipboard {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 7px;
+    font-size: 11px;
+    background: none;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    cursor: pointer;
+    color: #999;
+    transition: color 0.2s, border-color 0.2s;
+    line-height: 1;
+}
+
+.btn-refresh-clipboard:hover {
+    color: #009879;
+    border-color: #009879;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+.btn-refresh-clipboard .fa-refresh.spinning {
+    animation: spin 0.6s linear;
+}
+
+/* Locked textarea state */
+#shared-clipboard-textarea.clipboard-locked {
+    background: #f9f9f9;
+    color: #bbb;
+    cursor: not-allowed;
+    border-color: #e0e0e0;
+    opacity: 0.8;
+}
+
 /* Token reveal modal */
 .token-modal {
     max-width: 480px;
