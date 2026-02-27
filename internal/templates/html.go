@@ -31,15 +31,22 @@ func IsTextFile(fileName string) bool {
 }
 
 // CreateFolderRow generates HTML for a folder row in the file listing
-func CreateFolderRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo) string {
+func CreateFolderRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo, readOnly bool) string {
 	encodedPath := CreateEncodedPath(currentPath, file.Name())
 	escapedencodedFilePath := html.EscapeString(encodedPath)
 
 	escapedFolderName := html.EscapeString(file.Name())
 	folderLink := fmt.Sprintf(`<a href="/?path=%s">%s</a>`, escapedencodedFilePath, escapedFolderName)
 	lastModified := fileInfo.ModTime().Format("2006-01-02 15:04:05")
+
+	deleteBtn := ""
+	if !readOnly {
+		deleteBtn = fmt.Sprintf(`<button class="action-btn delete" title="Delete empty folder" onclick="deleteFolder('%s')"><i class="fa fa-trash"></i></button>`, escapedencodedFilePath)
+	}
+
 	return fmt.Sprintf(`
 		<tr>
+			<td class="col-checkbox"></td>
 			<td>%s</td>
 			<td>%s</td>
 			<td>-</td>
@@ -47,11 +54,11 @@ func CreateFolderRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo)
 			<td>-</td>
 			<td>
 				<div class="action-buttons">
-					<span>-</span>
+					%s
 				</div>
 			</td>
 		</tr>
-	`, folderLink, fileInfo.Mode(), lastModified)
+	`, folderLink, fileInfo.Mode(), lastModified, deleteBtn)
 }
 
 // CreateFileRow generates HTML for a file row in the file listing
@@ -84,10 +91,12 @@ func CreateFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo, c
 		deleteLink = fmt.Sprintf(`<button class="action-btn delete" title="Delete" onclick="window.location.href='/delete/?path=%s'"><i class="fa fa-trash"></i></button>`, escapedencodedFilePath)
 	}
 
-	// Search button only for readable files
+	// Search and view buttons only for readable text files
 	searchButton := ""
+	viewButton := ""
 	if isReadableFile {
 		searchButton = fmt.Sprintf(`<button class="action-btn search" title="Search in File" onclick="showSearchModal('%s', '%s')"><i class="fa fa-search"></i></button>`, escapedencodedFilePath, escapedFileName)
+		viewButton = fmt.Sprintf(`<button class="action-btn view" title="View File" onclick="openFileViewer('%s', '%s')"><i class="fa fa-eye"></i></button>`, escapedencodedFilePath, escapedFileName)
 	}
 
 	fileSize, units := formatFileSize(fileInfo.Size())
@@ -95,6 +104,7 @@ func CreateFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo, c
 
 	return fmt.Sprintf(`
 		<tr>
+			<td class="col-checkbox"><input type="checkbox" class="file-select-checkbox" data-path="%s" onchange="onCheckboxChange(this)"></td>
 			<td>%s</td>
 			<td>%s</td>
 			<td>%.2f %s</td>
@@ -102,12 +112,12 @@ func CreateFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo, c
 			<td>%s</td>
 			<td>
 				<div class="action-buttons">
-					%s%s%s%s%s
+					%s%s%s%s%s%s
 				</div>
 			</td>
 		</tr>
-	`, escapedFileName, fileInfo.Mode(), fileSize, units, lastModified, customPathDisplay,
-		downloadLink, copyURLButton, customPathButton, searchButton, deleteLink)
+	`, escapedencodedFilePath, escapedFileName, fileInfo.Mode(), fileSize, units, lastModified, customPathDisplay,
+		downloadLink, copyURLButton, customPathButton, viewButton, searchButton, deleteLink)
 }
 
 // CreateBackButton generates HTML for the back button

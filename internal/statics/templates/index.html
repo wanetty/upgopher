@@ -32,11 +32,12 @@
                     <table class="styled-table">
                         <thead>
                             <tr>
-                                <th onclick="sortTable(0)">Name <i id="name-icon" class="fa"></i></th>
+                                <th class="col-checkbox"><input type="checkbox" id="selectAllCheckbox" onchange="selectAll(this.checked)" title="Select all files"></th>
+                                <th onclick="sortTable(1)">Name <i id="name-icon" class="fa"></i></th>
                                 <th>Permissions</th>
-                                <th onclick="sortTable(2, 'number')">Size <i id="size-icon" class="fa"></i></th>
-                                <th onclick="sortTable(3)">Last Modified <i id="modified-icon" class="fa"></i></th>
-                                <th onclick="sortTable(4)">Custom Path <i id="custom-path-icon" class="fa"></i></th>
+                                <th onclick="sortTable(3, 'number')">Size <i id="size-icon" class="fa"></i></th>
+                                <th onclick="sortTable(4)">Last Modified <i id="modified-icon" class="fa"></i></th>
+                                <th onclick="sortTable(5)">Custom Path <i id="custom-path-icon" class="fa"></i></th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -45,7 +46,7 @@
                         </tbody>
                         <tfoot>
                             <tr>
-                                <td colspan="6">
+                                <td colspan="7">
                                     <div style="{{ .HiddenDisplay }} justify-content: space-between; align-items: center;">
                                         <label class="checkbox-container" for="showAlertCheckbox">
                                             Show Hidden Files
@@ -76,14 +77,23 @@
                     <p>Drag and drop files here or use the form below</p>
                 </div>
 
-                <form method="POST" class="upload-form" enctype="multipart/form-data" id="upload-form">
-                    <div class="file-input-wrapper">
-                        <input type="file" name="file" id="file-upload">
-                        <label for="file-upload" class="file-input-label">Choose File</label>
-                    </div>
-                    <span id="file-name" class="file-name"></span>
-                    <input type="submit" class="btn" value="Upload" id="upload-btn">
-                </form>
+                <!-- Upload + New Folder unified toolbar -->
+                <div class="upload-actions-row">
+                    <form method="POST" class="upload-form" enctype="multipart/form-data" id="upload-form">
+                        <div class="file-input-wrapper">
+                            <input type="file" name="file" id="file-upload">
+                            <label for="file-upload" class="file-input-label">
+                                <i class="fa fa-file-o"></i> Choose File
+                            </label>
+                        </div>
+                        <span id="file-name" class="file-name"></span>
+                        <input type="submit" class="btn btn-upload" value="Upload" id="upload-btn">
+                    </form>
+                    <span class="upload-actions-divider"></span>
+                    <button class="btn btn-secondary btn-new-folder" onclick="showNewFolderModal()">
+                        <i class="fa fa-folder"></i> New Folder
+                    </button>
+                </div>
 
                 <!-- Progress Bar Container -->
                 <div id="upload-progress-container" class="progress-container" style="display: none;">
@@ -102,11 +112,14 @@
                 {{ end }}
 
                 <div class="footer-buttons">
-                    <div>
+                    <div class="footer-btn-group footer-btn-group--nav">
                         {{ .BackButton }}
                     </div>
-                    <div>
+                    <div class="footer-btn-group footer-btn-group--actions">
                         {{ .DownloadButton }}
+                        <button id="downloadSelectedBtn" class="btn btn-download-selected" onclick="downloadSelected()">
+                            <i class="fa fa-download"></i> Download Selected (0)
+                        </button>
                     </div>
                 </div>
             </div>
@@ -170,6 +183,38 @@
                             </button>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for New Folder Creation -->
+        <div id="newFolderModal" class="modal-overlay" style="display:none;">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2 class="modal-title"><i class="fa fa-folder"></i> New Folder</h2>
+                </div>
+                <div class="form-group">
+                    <label for="newFolderName">Folder Name:</label>
+                    <input type="text" id="newFolderName" placeholder="my-folder" autocomplete="off">
+                    <small style="color:#888;">Only letters, digits, hyphens and underscores allowed.</small>
+                </div>
+                <div id="newFolderError" style="color:#c0392b; margin-top:0.4rem; display:none;"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-modal btn-cancel" onclick="closeNewFolderModal()">Cancel</button>
+                    <button type="button" class="btn-modal btn-create" onclick="createFolder()">Create</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for delete-directory errors -->
+        <div id="errorModal" class="modal-overlay" style="display:none;">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2 class="modal-title"><i class="fa fa-exclamation-triangle"></i> Cannot Delete Folder</h2>
+                </div>
+                <div id="errorModalMessage" style="padding: 1rem 0;"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-modal btn-cancel" onclick="closeErrorModal()">Close</button>
                 </div>
             </div>
         </div>
@@ -264,6 +309,21 @@
                 </div>
                 <div class="modal-footer">
                     <button class="btn-modal btn-create" onclick="closeTokenRevealModal()">I've saved it</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for File Viewer -->
+        <div id="fileViewerModal" class="modal-overlay">
+            <div class="modal file-viewer-modal">
+                <div class="modal-header">
+                    <h2 class="modal-title">File: <span id="fileViewerFileName"></span></h2>
+                </div>
+                <div class="file-viewer-content-container">
+                    <pre id="fileViewerContent" class="file-viewer-pre"></pre>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-modal btn-cancel" onclick="closeFileViewer()">Close</button>
                 </div>
             </div>
         </div>

@@ -49,6 +49,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // Load clipboard tabs on page load
     loadClipboardTabs();
 
+    // Restore file selection state from sessionStorage
+    initCheckboxes();
+
     // Update char count when textarea changes
     var clipboardTextarea = document.getElementById('shared-clipboard-textarea');
     if (clipboardTextarea) {
@@ -360,6 +363,15 @@ window.onclick = function (event) {
     if (event.target == document.getElementById('searchModal')) {
         closeSearchModal();
     }
+    if (event.target == document.getElementById('fileViewerModal')) {
+        closeFileViewer();
+    }
+    if (event.target == document.getElementById('newFolderModal')) {
+        closeNewFolderModal();
+    }
+    if (event.target == document.getElementById('errorModal')) {
+        closeErrorModal();
+    }
 }
 
 // Close modal with Escape key
@@ -367,6 +379,13 @@ document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') {
         closeCustomPathModal();
         closeSearchModal();
+        closeFileViewer();
+        closeNewFolderModal();
+        closeErrorModal();
+    }
+    if (event.key === 'Enter' && document.getElementById('newFolderModal').style.display === 'flex') {
+        event.preventDefault();
+        createFolder();
     }
 });
 
@@ -587,19 +606,158 @@ function highlightSearchTerm(text, term) {
     }
 }
 
-// In a real implementation, this function would make a request to the server
+// ── File Viewer ──────────────────────────────────────────────────────────────
+
+function openFileViewer(filePath, fileName) {
+    if (!filePath || typeof filePath !== 'string') return;
+
+    var safeFileName = escapeHtml(fileName || 'File');
+    document.getElementById('fileViewerFileName').textContent = safeFileName;
+    document.getElementById('fileViewerContent').textContent = 'Loading...';
+    document.getElementById('fileViewerModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+
+    fetch('/file-content?path=' + encodeURIComponent(filePath))
+        .then(function (response) {
+            if (!response.ok) {
+                return response.text().then(function (text) {
+                    throw new Error(text.trim() || 'Cannot load file');
+                });
+            }
+            return response.json();
+        })
+        .then(function (data) {
+            document.getElementById('fileViewerContent').textContent = data.content;
+        })
+        .catch(function (error) {
+            document.getElementById('fileViewerContent').textContent = 'Error: ' + error.message;
+        });
+}
+
+function closeFileViewer() {
+    document.getElementById('fileViewerModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
+    document.getElementById('fileViewerContent').textContent = '';
+}
+
+// Kept for backward compatibility — openFileViewer is the active implementation
 function fetchFileContent(filePath) {
-    return new Promise((resolve, reject) => {
-        fetch(`/file-content?path=${filePath}`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Error fetching file content');
-                }
-                return response.text();
-            })
-            .then(content => resolve(content))
-            .catch(error => reject(error));
+    openFileViewer(filePath, '');
+}
+
+// ── File Selection (cross-directory via sessionStorage) ───────────────────────
+
+var SELECTION_KEY = 'upgopher_selected_files';
+
+function getSelectedFiles() {
+    try {
+        return JSON.parse(sessionStorage.getItem(SELECTION_KEY) || '[]');
+    } catch (e) {
+        return [];
+    }
+}
+
+function setSelectedFiles(paths) {
+    sessionStorage.setItem(SELECTION_KEY, JSON.stringify(paths));
+    updateDownloadSelectedBtn();
+}
+
+function initCheckboxes() {
+    var selected = getSelectedFiles();
+    document.querySelectorAll('.file-select-checkbox').forEach(function (cb) {
+        cb.checked = selected.indexOf(cb.dataset.path) !== -1;
     });
+    updateDownloadSelectedBtn();
+    updateSelectAllCheckbox();
+}
+
+function onCheckboxChange(checkbox) {
+    var path = checkbox.dataset.path;
+    var selected = getSelectedFiles();
+    if (checkbox.checked) {
+        if (selected.indexOf(path) === -1) selected.push(path);
+    } else {
+        selected = selected.filter(function (p) { return p !== path; });
+    }
+    setSelectedFiles(selected);
+    updateSelectAllCheckbox();
+}
+
+function selectAll(checked) {
+    var checkboxes = document.querySelectorAll('.file-select-checkbox');
+    var selected = getSelectedFiles();
+    if (checked) {
+        checkboxes.forEach(function (cb) {
+            cb.checked = true;
+            if (selected.indexOf(cb.dataset.path) === -1) {
+                selected.push(cb.dataset.path);
+            }
+        });
+    } else {
+        var pagePaths = Array.from(checkboxes).map(function (cb) { return cb.dataset.path; });
+        selected = selected.filter(function (p) { return pagePaths.indexOf(p) === -1; });
+        checkboxes.forEach(function (cb) { cb.checked = false; });
+    }
+    setSelectedFiles(selected);
+}
+
+function updateSelectAllCheckbox() {
+    var checkboxes = Array.from(document.querySelectorAll('.file-select-checkbox'));
+    var selectAllCb = document.getElementById('selectAllCheckbox');
+    if (!selectAllCb || checkboxes.length === 0) return;
+    var allChecked = checkboxes.every(function (cb) { return cb.checked; });
+    var someChecked = checkboxes.some(function (cb) { return cb.checked; });
+    selectAllCb.checked = allChecked;
+    selectAllCb.indeterminate = !allChecked && someChecked;
+}
+
+function updateDownloadSelectedBtn() {
+    var selected = getSelectedFiles();
+    var btn = document.getElementById('downloadSelectedBtn');
+    if (!btn) return;
+    if (selected.length === 0) {
+        btn.style.display = 'none';
+    } else {
+        btn.style.display = 'inline-block';
+        btn.innerHTML = '<i class="fa fa-download"></i> Download Selected (' + selected.length + ')';
+    }
+}
+
+function downloadSelected() {
+    var selected = getSelectedFiles();
+    if (selected.length === 0) {
+        showToast('No files selected', 'error');
+        return;
+    }
+
+    fetch('/zip-selected', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths: selected })
+    })
+        .then(function (response) {
+            if (!response.ok) {
+                return response.text().then(function (text) {
+                    throw new Error(text.trim() || 'Error creating ZIP');
+                });
+            }
+            return response.blob();
+        })
+        .then(function (blob) {
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'selected-files.zip';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function () {
+                URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            }, 100);
+        })
+        .catch(function (error) {
+            showToast('Error downloading: ' + escapeHtml(error.message), 'error');
+        });
 }
 
 function sortTable(n, type = 'string') {
@@ -613,8 +771,8 @@ function sortTable(n, type = 'string') {
         const cellA = rowA.cells[n].innerText.trim();
         const cellB = rowB.cells[n].innerText.trim();
 
-        // Last Modified column (date sorting)
-        if (n === 3) {
+        // Last Modified column (date sorting) — now at index 4 due to checkbox column
+        if (n === 4) {
             // Try to parse as ISO date, fallback to string
             const dateA = Date.parse(cellA);
             const dateB = Date.parse(cellB);
@@ -641,10 +799,10 @@ function sortTable(n, type = 'string') {
     rows.forEach(row => table.appendChild(row));
 
     document.querySelectorAll("th i").forEach(icon => icon.className = 'fa');
-    const iconId = n === 0 ? 'name-icon' :
-        n === 2 ? 'size-icon' :
-            n === 3 ? 'modified-icon' :
-                n === 4 ? 'custom-path-icon' : '';
+    const iconId = n === 1 ? 'name-icon' :
+        n === 3 ? 'size-icon' :
+            n === 4 ? 'modified-icon' :
+                n === 5 ? 'custom-path-icon' : '';
     if (iconId) {
         const icon = document.getElementById(iconId);
         icon.className = "fa fa-sort-" + (sortOrder === 'asc' ? 'asc' : 'desc');
@@ -1110,4 +1268,97 @@ function showToast(message, type) {
         toast.classList.add('hiding');
         toast.addEventListener('animationend', function () { toast.remove(); });
     }, 3000);
+}
+
+// ── New Folder modal ──────────────────────────────────────────────────────────
+function showNewFolderModal() {
+    document.getElementById('newFolderName').value = '';
+    document.getElementById('newFolderError').style.display = 'none';
+    document.getElementById('newFolderError').textContent = '';
+    document.getElementById('newFolderModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    setTimeout(function () { document.getElementById('newFolderName').focus(); }, 100);
+}
+
+function closeNewFolderModal() {
+    document.getElementById('newFolderModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
+function createFolder() {
+    var folderName = document.getElementById('newFolderName').value.trim();
+    var errorEl = document.getElementById('newFolderError');
+
+    if (!folderName) {
+        errorEl.textContent = 'Please enter a folder name.';
+        errorEl.style.display = 'block';
+        return;
+    }
+
+    if (!/^[a-zA-Z0-9_-]+$/.test(folderName)) {
+        errorEl.textContent = 'Invalid name: only letters, digits, hyphens and underscores are allowed.';
+        errorEl.style.display = 'block';
+        return;
+    }
+
+    var params = new URLSearchParams(window.location.search);
+    var currentPath = params.get('path') || '';
+
+    fetch('/mkdir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'folderName=' + encodeURIComponent(folderName) + '&currentPath=' + encodeURIComponent(currentPath)
+    })
+        .then(function (response) {
+            if (response.status === 409) {
+                errorEl.textContent = 'A folder with that name already exists.';
+                errorEl.style.display = 'block';
+                return;
+            }
+            if (!response.ok) {
+                return response.text().then(function (text) {
+                    errorEl.textContent = text.trim() || 'Failed to create folder.';
+                    errorEl.style.display = 'block';
+                });
+            }
+            closeNewFolderModal();
+            window.location.reload();
+        })
+        .catch(function (error) {
+            errorEl.textContent = 'Network error: ' + escapeHtml(error.message);
+            errorEl.style.display = 'block';
+        });
+}
+
+// ── Error modal (directory operations) ───────────────────────────────────────
+function showErrorModal(message) {
+    document.getElementById('errorModalMessage').textContent = message;
+    document.getElementById('errorModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeErrorModal() {
+    document.getElementById('errorModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
+function deleteFolder(encodedPath) {
+    fetch('/delete/?path=' + encodeURIComponent(encodedPath))
+        .then(function (response) {
+            if (response.ok || response.redirected) {
+                window.location.reload();
+                return;
+            }
+            if (response.status === 403) {
+                return response.text().then(function (text) {
+                    showErrorModal(text.trim() || 'Cannot delete directory.');
+                });
+            }
+            return response.text().then(function (text) {
+                showErrorModal(text.trim() || 'An error occurred while deleting the folder.');
+            });
+        })
+        .catch(function (error) {
+            showErrorModal('Network error: ' + escapeHtml(error.message));
+        });
 }

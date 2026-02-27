@@ -118,7 +118,7 @@ func TestDirectoryDeletionPrevention(t *testing.T) {
 
 	handler(w, req)
 
-	// Should return 403 Forbidden
+	// Should return 403 Forbidden because directory is not empty
 	if w.Code != http.StatusForbidden {
 		t.Errorf("Expected status 403 Forbidden, got %d", w.Code)
 	}
@@ -129,8 +129,244 @@ func TestDirectoryDeletionPrevention(t *testing.T) {
 	}
 
 	// Verify body contains appropriate error message
-	if !strings.Contains(w.Body.String(), "Cannot delete directories") {
-		t.Errorf("Expected error message about directory deletion, got: %s", w.Body.String())
+	if !strings.Contains(w.Body.String(), "Directory is not empty") {
+		t.Errorf("Expected error message about non-empty directory, got: %s", w.Body.String())
+	}
+}
+
+// TestDeleteEmptyDirectory tests that empty directories can be deleted
+func TestDeleteEmptyDirectory(t *testing.T) {
+	tempDir := t.TempDir()
+
+	emptyDir := filepath.Join(tempDir, "emptydir")
+	if err := os.Mkdir(emptyDir, 0755); err != nil {
+		t.Fatalf("Failed to create empty test directory: %v", err)
+	}
+
+	encodedPath := base64.StdEncoding.EncodeToString([]byte("emptydir"))
+
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	handler := fh.Delete()
+
+	req := httptest.NewRequest("GET", "/delete/?path="+encodedPath, nil)
+	w := httptest.NewRecorder()
+	handler(w, req)
+
+	if w.Code != http.StatusSeeOther {
+		t.Errorf("Expected redirect (303) after deleting empty dir, got %d: %s", w.Code, w.Body.String())
+	}
+
+	if _, err := os.Stat(emptyDir); !os.IsNotExist(err) {
+		t.Error("Empty directory was not deleted")
+	}
+}
+
+// TestDeleteDirectoryReadOnly tests that directories cannot be deleted in readonly mode
+func TestDeleteDirectoryReadOnly(t *testing.T) {
+	tempDir := t.TempDir()
+
+	emptyDir := filepath.Join(tempDir, "emptydir")
+	if err := os.Mkdir(emptyDir, 0755); err != nil {
+		t.Fatalf("Failed to create empty test directory: %v", err)
+	}
+
+	encodedPath := base64.StdEncoding.EncodeToString([]byte("emptydir"))
+
+	fh := handlers.NewFileHandlers(tempDir, true, false, true, &showHiddenFiles, &customPaths, &customPathsMutex)
+	handler := fh.Delete()
+
+	req := httptest.NewRequest("GET", "/delete/?path="+encodedPath, nil)
+	w := httptest.NewRecorder()
+	handler(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 in readonly mode, got %d", w.Code)
+	}
+
+	if _, err := os.Stat(emptyDir); os.IsNotExist(err) {
+		t.Error("Directory was deleted in readonly mode!")
+	}
+}
+
+// TestMkdirHandler tests the Mkdir handler
+func TestMkdirHandler(t *testing.T) {
+	tempDir := t.TempDir()
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	handler := fh.Mkdir()
+
+	tests := []struct {
+		name           string
+		folderName     string
+		currentPath    string
+		expectedStatus int
+		shouldExist    bool
+	}{
+		{
+			name:           "valid folder at root",
+			folderName:     "new-folder",
+			currentPath:    "",
+			expectedStatus: http.StatusCreated,
+			shouldExist:    true,
+		},
+		{
+			name:           "valid folder with underscores",
+			folderName:     "my_folder_123",
+			currentPath:    "",
+			expectedStatus: http.StatusCreated,
+			shouldExist:    true,
+		},
+		{
+			name:           "invalid name with spaces",
+			folderName:     "my folder",
+			currentPath:    "",
+			expectedStatus: http.StatusBadRequest,
+			shouldExist:    false,
+		},
+		{
+			name:           "invalid name with slash",
+			folderName:     "sub/folder",
+			currentPath:    "",
+			expectedStatus: http.StatusBadRequest,
+			shouldExist:    false,
+		},
+		{
+			name:           "empty folder name",
+			folderName:     "",
+			currentPath:    "",
+			expectedStatus: http.StatusBadRequest,
+			shouldExist:    false,
+		},
+		{
+			name:           "path traversal attempt via folderName",
+			folderName:     "../escape",
+			currentPath:    "",
+			expectedStatus: http.StatusBadRequest,
+			shouldExist:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := "folderName=" + tt.folderName + "&currentPath=" + tt.currentPath
+			req := httptest.NewRequest("POST", "/mkdir", strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			w := httptest.NewRecorder()
+
+			handler(w, req)
+
+			if w.Code != tt.expectedStatus {
+				t.Errorf("Expected status %d, got %d: %s", tt.expectedStatus, w.Code, w.Body.String())
+			}
+
+			// Skip existence check for empty/special folder names where filepath.Join
+			// would resolve to an existing directory (e.g. tempDir itself).
+			if tt.folderName == "" || strings.ContainsAny(tt.folderName, "/\\") {
+				return
+			}
+
+			expectedPath := filepath.Join(tempDir, tt.folderName)
+			_, statErr := os.Stat(expectedPath)
+			exists := !os.IsNotExist(statErr)
+			if exists != tt.shouldExist {
+				t.Errorf("Folder existence mismatch: shouldExist=%v, exists=%v", tt.shouldExist, exists)
+			}
+		})
+	}
+}
+
+// TestMkdirReadOnly tests that Mkdir is blocked in readonly mode
+func TestMkdirReadOnly(t *testing.T) {
+	tempDir := t.TempDir()
+	fh := handlers.NewFileHandlers(tempDir, true, false, true, &showHiddenFiles, &customPaths, &customPathsMutex)
+	handler := fh.Mkdir()
+
+	body := "folderName=test-folder&currentPath="
+	req := httptest.NewRequest("POST", "/mkdir", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	handler(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 in readonly mode, got %d", w.Code)
+	}
+
+	if _, err := os.Stat(filepath.Join(tempDir, "test-folder")); !os.IsNotExist(err) {
+		t.Error("Folder was created in readonly mode!")
+	}
+}
+
+// TestMkdirPathTraversal tests path traversal attacks via currentPath
+func TestMkdirPathTraversal(t *testing.T) {
+	tempDir := t.TempDir()
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	handler := fh.Mkdir()
+
+	attacks := []string{
+		base64.StdEncoding.EncodeToString([]byte("../../")),
+		base64.StdEncoding.EncodeToString([]byte("../outside")),
+		base64.StdEncoding.EncodeToString([]byte("/etc")),
+	}
+
+	for _, encodedAttack := range attacks {
+		t.Run("attack_"+encodedAttack[:8], func(t *testing.T) {
+			body := "folderName=evil&currentPath=" + encodedAttack
+			req := httptest.NewRequest("POST", "/mkdir", strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			w := httptest.NewRecorder()
+
+			handler(w, req)
+
+			if w.Code == http.StatusCreated {
+				t.Errorf("Path traversal via currentPath was not blocked (status %d)", w.Code)
+			}
+
+			// Verify no folder was created outside tempDir
+			parentDir := filepath.Dir(tempDir)
+			evilPath := filepath.Join(parentDir, "evil")
+			if _, err := os.Stat(evilPath); !os.IsNotExist(err) {
+				t.Errorf("Folder was created outside base directory: %s", evilPath)
+				os.Remove(evilPath)
+			}
+		})
+	}
+}
+
+// TestMkdirDuplicate tests creating a folder that already exists
+func TestMkdirDuplicate(t *testing.T) {
+	tempDir := t.TempDir()
+
+	if err := os.Mkdir(filepath.Join(tempDir, "existing"), 0755); err != nil {
+		t.Fatalf("Failed to create existing dir: %v", err)
+	}
+
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	handler := fh.Mkdir()
+
+	body := "folderName=existing&currentPath="
+	req := httptest.NewRequest("POST", "/mkdir", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	handler(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Errorf("Expected 409 Conflict for duplicate folder, got %d", w.Code)
+	}
+}
+
+// TestMkdirMethodNotAllowed tests that GET requests are rejected
+func TestMkdirMethodNotAllowed(t *testing.T) {
+	tempDir := t.TempDir()
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	handler := fh.Mkdir()
+
+	req := httptest.NewRequest("GET", "/mkdir?folderName=test", nil)
+	w := httptest.NewRecorder()
+	handler(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("Expected 405 for GET on /mkdir, got %d", w.Code)
 	}
 }
 

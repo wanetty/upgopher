@@ -359,14 +359,30 @@ td a:hover {
     font-weight: 500;
 }
 
-/* File Upload Form */
-.upload-form {
-    margin: 20px auto;
-    text-align: center;
+/* Upload Actions Row (unified upload + new folder) */
+.upload-actions-row {
     display: flex;
     justify-content: center;
     align-items: center;
+    gap: 0;
+    margin: 20px auto;
+    max-width: 760px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
+    padding: 16px 24px;
+    flex-wrap: wrap;
+}
+
+/* File Upload Form inside the row */
+.upload-form {
+    display: flex;
+    align-items: center;
     gap: 10px;
+    flex-wrap: wrap;
+    flex: 1;
+    min-width: 0;
+    margin: 0;
 }
 
 .file-input-wrapper {
@@ -386,13 +402,17 @@ td a:hover {
 }
 
 .file-input-label {
-    display: inline-block;
-    padding: 10px 15px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 14px;
     background-color: #f0f0f0;
     color: #333;
-    border-radius: 5px;
+    border-radius: 6px;
     cursor: pointer;
     transition: background-color 0.2s;
+    font-size: 14px;
+    white-space: nowrap;
 }
 
 .file-input-label:hover {
@@ -400,9 +420,32 @@ td a:hover {
 }
 
 .file-name {
-    margin-left: 10px;
-    font-size: 14px;
+    font-size: 13px;
     color: #666;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex-shrink: 1;
+}
+
+.btn-upload {
+    white-space: nowrap;
+}
+
+/* Divider between upload form and new-folder button */
+.upload-actions-divider {
+    display: inline-block;
+    width: 1px;
+    height: 32px;
+    background: #e0e0e0;
+    margin: 0 20px;
+    flex-shrink: 0;
+}
+
+.btn-new-folder {
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 /* Progress Bar Styles */
@@ -501,9 +544,39 @@ td a:hover {
 /* Footer Buttons */
 .footer-buttons {
     display: flex;
+    align-items: center;
     justify-content: center;
-    gap: 15px;
-    margin: 30px 0;
+    gap: 10px;
+    margin: 28px auto;
+    max-width: 760px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
+    padding: 14px 24px;
+    flex-wrap: wrap;
+}
+
+.footer-btn-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.footer-btn-group--nav {
+    margin-right: auto;
+}
+
+.footer-btn-group--actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* Hide download-selected by default (JS toggles it) */
+.btn-download-selected {
+    display: none;
 }
 
 /* Checkbox Styles */
@@ -857,9 +930,44 @@ td a:hover {
         padding: 30px 10px;
     }
 
+    .upload-actions-row {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 14px 16px;
+        gap: 12px;
+    }
+
     .upload-form {
         flex-direction: column;
-        gap: 15px;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .upload-actions-divider {
+        width: 100%;
+        height: 1px;
+        margin: 4px 0;
+    }
+
+    .btn-new-folder {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .footer-buttons {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 14px 16px;
+        gap: 10px;
+    }
+
+    .footer-btn-group--nav {
+        margin-right: 0;
+    }
+
+    .footer-btn-group {
+        flex-direction: column;
+        align-items: stretch;
     }
 
     .btn {
@@ -1252,4 +1360,61 @@ td a:hover {
 @keyframes toastOut {
     from { transform: translateX(0);    opacity: 1; }
     to   { transform: translateX(120%); opacity: 0; }
+}
+
+/* ── Checkbox column ─────────────────────────────────────────────────────── */
+.col-checkbox {
+    width: 36px;
+    padding: 8px 4px !important;
+    text-align: center !important;
+}
+
+.col-checkbox input[type="checkbox"] {
+    cursor: pointer;
+    width: 15px;
+    height: 15px;
+    accent-color: #009879;
+}
+
+.styled-table thead .col-checkbox input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    accent-color: white;
+}
+
+/* ── View action button ───────────────────────────────────────────────────── */
+.action-btn.view:hover {
+    color: #009879;
+}
+
+/* ── File Viewer Modal ───────────────────────────────────────────────────── */
+.file-viewer-modal {
+    width: 90%;
+    max-width: 900px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.file-viewer-content-container {
+    flex: 1;
+    overflow: hidden;
+    background-color: #1e1e1e;
+    border-radius: 5px;
+    margin-bottom: 16px;
+    min-height: 200px;
+    max-height: 65vh;
+    overflow-y: auto;
+}
+
+.file-viewer-pre {
+    margin: 0;
+    padding: 16px;
+    color: #d4d4d4;
+    font-family: 'Courier New', 'Consolas', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-all;
+    tab-size: 4;
 }

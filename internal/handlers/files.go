@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +21,8 @@ import (
 	"github.com/wanetty/upgopher/internal/templates"
 	"github.com/wanetty/upgopher/internal/utils"
 )
+
+var validFolderName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // FileHandlers manages file-related HTTP handlers
 type FileHandlers struct {
@@ -233,13 +236,21 @@ func (fh *FileHandlers) Delete() http.HandlerFunc {
 			return
 		}
 
-		// Prevent deletion of directories
+		// Only allow deleting empty directories
 		if fileInfo.IsDir() {
-			http.Error(w, "Cannot delete directories", http.StatusForbidden)
-			if !fh.Quiet {
-				log.Printf("[%s] Attempt to delete directory blocked: %s\n", time.Now().Format("2006-01-02 15:04:05"), fullFilePath)
+			entries, readErr := os.ReadDir(fullFilePath)
+			if readErr != nil {
+				http.Error(w, "Cannot read directory", http.StatusInternalServerError)
+				log.Printf("[%s] Error reading directory: %v\n", time.Now().Format("2006-01-02 15:04:05"), readErr)
+				return
 			}
-			return
+			if len(entries) > 0 {
+				http.Error(w, "Directory is not empty", http.StatusForbidden)
+				if !fh.Quiet {
+					log.Printf("[%s] Attempt to delete non-empty directory blocked: %s\n", time.Now().Format("2006-01-02 15:04:05"), fullFilePath)
+				}
+				return
+			}
 		}
 
 		err = os.Remove(fullFilePath)
@@ -260,6 +271,78 @@ func (fh *FileHandlers) Delete() http.HandlerFunc {
 			encodedDirPath := base64.StdEncoding.EncodeToString([]byte(dirPath))
 			http.Redirect(w, r, "/?path="+encodedDirPath, http.StatusSeeOther)
 		}
+	}
+}
+
+// Mkdir creates a new directory inside the shared directory
+func (fh *FileHandlers) Mkdir() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		if fh.ReadOnly {
+			http.Error(w, "Create directory operation is disabled in readonly mode", http.StatusForbidden)
+			if !fh.Quiet {
+				log.Printf("[%s] Mkdir attempt blocked (readonly mode): %s\n", time.Now().Format("2006-01-02 15:04:05"), r.RemoteAddr)
+			}
+			return
+		}
+
+		if !fh.Quiet {
+			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
+		}
+
+		folderName := r.FormValue("folderName")
+		encodedCurrentPath := r.FormValue("currentPath")
+
+		if !validFolderName.MatchString(folderName) {
+			http.Error(w, "Invalid folder name: only letters, digits, hyphens and underscores are allowed", http.StatusBadRequest)
+			if !fh.Quiet {
+				log.Printf("[%s] Invalid folder name rejected: %q %s\n", time.Now().Format("2006-01-02 15:04:05"), folderName, r.RemoteAddr)
+			}
+			return
+		}
+
+		var currentRelPath string
+		if encodedCurrentPath != "" {
+			decodedPath, err := base64.StdEncoding.DecodeString(encodedCurrentPath)
+			if err != nil {
+				http.Error(w, "Invalid path encoding", http.StatusBadRequest)
+				return
+			}
+			currentRelPath = string(decodedPath)
+		}
+
+		// Use only the base component of folderName (belt-and-suspenders against slashes)
+		safeName := filepath.Base(folderName)
+		newDirPath := filepath.Join(fh.Dir, currentRelPath, safeName)
+
+		isSafe, err := security.IsSafePath(fh.Dir, newDirPath)
+		if err != nil || !isSafe {
+			http.Error(w, "Bad path", http.StatusForbidden)
+			if !fh.Quiet {
+				log.Printf("[%s] [POST - 403] /mkdir %s\n", time.Now().Format("2006-01-02 15:04:05"), r.RemoteAddr)
+			}
+			return
+		}
+
+		if err := os.Mkdir(newDirPath, 0755); err != nil {
+			if os.IsExist(err) {
+				http.Error(w, "Directory already exists", http.StatusConflict)
+			} else {
+				http.Error(w, "Failed to create directory", http.StatusInternalServerError)
+				log.Printf("[%s] Error creating directory: %v\n", time.Now().Format("2006-01-02 15:04:05"), err)
+			}
+			return
+		}
+
+		if !fh.Quiet {
+			log.Printf("[%s] Directory created: %s\n", time.Now().Format("2006-01-02 15:04:05"), newDirPath)
+		}
+
+		w.WriteHeader(http.StatusCreated)
 	}
 }
 
@@ -338,6 +421,140 @@ func (fh *FileHandlers) Search() http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(results)
+	}
+}
+
+// FileContent serves the text content of a file as JSON for in-browser viewing
+func (fh *FileHandlers) FileContent() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		if !fh.Quiet {
+			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
+		}
+
+		encodedPath := r.URL.Query().Get("path")
+		if encodedPath == "" {
+			http.Error(w, "Missing path parameter", http.StatusBadRequest)
+			return
+		}
+
+		decodedPath, err := base64.StdEncoding.DecodeString(encodedPath)
+		if err != nil {
+			http.Error(w, "Invalid path encoding", http.StatusBadRequest)
+			return
+		}
+
+		fullPath := filepath.Join(fh.Dir, string(decodedPath))
+		isSafe, err := security.IsSafePath(fh.Dir, fullPath)
+		if err != nil || !isSafe {
+			http.Error(w, "Bad path", http.StatusForbidden)
+			return
+		}
+
+		fileInfo, err := os.Stat(fullPath)
+		if os.IsNotExist(err) {
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			http.Error(w, "Internal error", http.StatusInternalServerError)
+			return
+		}
+		if fileInfo.IsDir() {
+			http.Error(w, "Path is a directory", http.StatusBadRequest)
+			return
+		}
+
+		_, filename := filepath.Split(fullPath)
+		if !templates.IsTextFile(filename) {
+			http.Error(w, "File type not supported for viewing", http.StatusUnsupportedMediaType)
+			return
+		}
+
+		const maxFileSize = 1 << 20 // 1 MB
+		if fileInfo.Size() > maxFileSize {
+			http.Error(w, "File too large to view (max 1 MB)", http.StatusRequestEntityTooLarge)
+			return
+		}
+
+		content, err := os.ReadFile(fullPath)
+		if err != nil {
+			http.Error(w, "Internal error", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"filename": filename,
+			"content":  string(content),
+		})
+	}
+}
+
+// ZipSelected creates and serves a zip archive of specifically selected files
+func (fh *FileHandlers) ZipSelected() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		if !fh.Quiet {
+			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
+		}
+
+		var req struct {
+			Paths []string `json:"paths"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		if len(req.Paths) == 0 {
+			http.Error(w, "No files selected", http.StatusBadRequest)
+			return
+		}
+
+		// Decode and validate each path individually — one bad path aborts all
+		fullPaths := make([]string, 0, len(req.Paths))
+		for _, encodedPath := range req.Paths {
+			decoded, err := base64.StdEncoding.DecodeString(encodedPath)
+			if err != nil {
+				http.Error(w, "Invalid path encoding", http.StatusBadRequest)
+				return
+			}
+			fullPath := filepath.Join(fh.Dir, string(decoded))
+			isSafe, err := security.IsSafePath(fh.Dir, fullPath)
+			if err != nil || !isSafe {
+				http.Error(w, "Bad path", http.StatusForbidden)
+				return
+			}
+			info, err := os.Stat(fullPath)
+			if err != nil || info.IsDir() {
+				continue
+			}
+			fullPaths = append(fullPaths, fullPath)
+		}
+
+		if len(fullPaths) == 0 {
+			http.Error(w, "No valid files to zip", http.StatusBadRequest)
+			return
+		}
+
+		zipFilename, err := fh.zipSpecificFiles(fullPaths)
+		if err != nil {
+			http.Error(w, "Unable to create zip file", http.StatusInternalServerError)
+			return
+		}
+		defer os.Remove(zipFilename)
+		w.Header().Set("Content-Disposition", "attachment; filename=selected-files.zip")
+		w.Header().Set("Content-Type", "application/zip")
+		http.ServeFile(w, r, zipFilename)
 	}
 }
 
@@ -422,7 +639,7 @@ func (fh *FileHandlers) createTable(files []fs.DirEntry, dir string, currentPath
 			return "", err
 		}
 		if file.IsDir() {
-			table += templates.CreateFolderRow(file, currentPath, fileInfo)
+			table += templates.CreateFolderRow(file, currentPath, fileInfo, fh.ReadOnly)
 		} else {
 			fh.CustomPathsMutex.RLock()
 			customPathsCopy := make(map[string]string)
@@ -504,4 +721,54 @@ func (fh *FileHandlers) zipFiles(currentPath string) (string, error) {
 	})
 
 	return filename, err
+}
+
+// zipSpecificFiles creates a zip archive containing specifically selected files
+func (fh *FileHandlers) zipSpecificFiles(fullPaths []string) (string, error) {
+	tempFile, err := os.CreateTemp(os.TempDir(), "selected-*.zip")
+	if err != nil {
+		return "", err
+	}
+	filename := tempFile.Name()
+	defer tempFile.Close()
+
+	zipWriter := zip.NewWriter(tempFile)
+	defer zipWriter.Close()
+
+	for _, fullPath := range fullPaths {
+		info, err := os.Stat(fullPath)
+		if err != nil {
+			continue
+		}
+
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return "", err
+		}
+
+		relPath, err := filepath.Rel(fh.Dir, fullPath)
+		if err != nil {
+			header.Name = info.Name()
+		} else {
+			header.Name = relPath
+		}
+		header.Method = zip.Deflate
+
+		writer, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			return "", err
+		}
+
+		file, err := os.Open(fullPath)
+		if err != nil {
+			return "", err
+		}
+		_, copyErr := io.Copy(writer, file)
+		file.Close()
+		if copyErr != nil {
+			return "", copyErr
+		}
+	}
+
+	return filename, nil
 }
