@@ -28,7 +28,7 @@ var favicon embed.FS
 var logo embed.FS
 
 var quiet bool = false
-var version = "1.14.0"
+var version = "1.15.0"
 var showHiddenFiles bool = false
 var disableHiddenFiles bool = false
 var readOnly bool = false
