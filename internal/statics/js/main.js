@@ -49,6 +49,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // Load clipboard tabs on page load
     loadClipboardTabs();
 
+    // Initialize auto-save (SSE + debounce + toggle)
+    initAutoSave();
+
     // Restore file selection state from sessionStorage
     initCheckboxes();
 
@@ -123,11 +126,13 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 // Function to save text to shared clipboard
-function saveToSharedClipboard() {
+function saveToSharedClipboard(isAutoSave) {
     var clipboardText = document.getElementById('shared-clipboard-textarea').value;
     var headers = { 'Content-Type': 'text/plain' };
     var token = clipboardTokenCache[currentClipboardTab];
     if (token) headers['X-Tab-Token'] = token;
+
+    if (isAutoSave) setAutoSaveStatus('saving');
 
     fetch('/clipboard?tab=' + encodeURIComponent(currentClipboardTab), {
         method: 'POST',
@@ -137,14 +142,23 @@ function saveToSharedClipboard() {
         .then(function (response) {
             if (response.status === 401) {
                 setClipboardEditable(false);
-                showTokenUnlockRow(currentClipboardTab, function () { saveToSharedClipboard(); });
+                showTokenUnlockRow(currentClipboardTab, function () { saveToSharedClipboard(isAutoSave); });
                 return;
             }
             if (!response.ok) throw new Error('Error saving to shared clipboard');
-            showToast('Saved to "' + currentClipboardTab + '"');
-            loadClipboardTabs(false);
+            _isLocallyDirty = false; // save succeeded — SSE updates can be applied again
+            if (isAutoSave) {
+                setAutoSaveStatus('saved');
+                loadClipboardTabs(false);
+            } else {
+                showToast('Saved to "' + currentClipboardTab + '"');
+                loadClipboardTabs(false);
+            }
         })
         .catch(function (error) {
+            if (isAutoSave) {
+                setAutoSaveStatus('idle');
+            }
             showToast(error.message, 'error');
         });
 }
@@ -916,6 +930,133 @@ function setupFileUpload() {
     });
 }
 
+// ── Clipboard SSE Auto-Sync ───────────────────────────────────────────────────
+var _sseSource = null;           // active EventSource
+var _autoSaveTimer = null;       // debounce timer handle
+var _autoSaveEnabled = true;     // current state
+var _isLocallyDirty = false;     // true when user has typed but the save hasn't completed yet
+var AUTOSAVE_DEBOUNCE_MS = 1200; // ms to wait after last keystroke before saving
+
+/**
+ * Reads the auto-save preference from localStorage and applies it.
+ * Called once on load. Default is enabled.
+ */
+function initAutoSave() {
+    var stored = localStorage.getItem('upgopher_autosave');
+    _autoSaveEnabled = stored !== '0'; // default ON
+    var cb = document.getElementById('clipboard-autosave-toggle');
+    if (cb) cb.checked = _autoSaveEnabled;
+    var textarea = document.getElementById('shared-clipboard-textarea');
+    if (textarea) {
+        textarea.addEventListener('input', onClipboardInput);
+    }
+}
+
+/** Called on every textarea input event. */
+function onClipboardInput() {
+    if (!_autoSaveEnabled) return;
+    _isLocallyDirty = true;        // mark that the textarea has unsaved local changes
+    clearTimeout(_autoSaveTimer);
+    setAutoSaveStatus('pending');
+    _autoSaveTimer = setTimeout(function () {
+        saveToSharedClipboard(true); // true = called by auto-save
+    }, AUTOSAVE_DEBOUNCE_MS);
+}
+
+/** Toggle auto-save ON/OFF from the UI checkbox. */
+function toggleAutoSave(enabled) {
+    _autoSaveEnabled = enabled;
+    localStorage.setItem('upgopher_autosave', enabled ? '1' : '0');
+    if (!enabled) {
+        clearTimeout(_autoSaveTimer);
+        setAutoSaveStatus('off');
+    } else {
+        setAutoSaveStatus('idle');
+    }
+}
+
+/**
+ * Updates the auto-save status indicator.
+ * states: 'idle' | 'pending' | 'saving' | 'saved' | 'off'
+ */
+function setAutoSaveStatus(state) {
+    var el = document.getElementById('autosave-status');
+    if (!el) return;
+    var labels = { idle: '', pending: '…', saving: 'Saving…', saved: 'Auto-saved ✓', off: 'Auto-save off' };
+    el.textContent = labels[state] || '';
+    el.className = 'autosave-status autosave-' + state;
+}
+
+// ── Server-Sent Events connection ─────────────────────────────────────────────
+
+/**
+ * Opens an SSE connection to /clipboard/stream?tab=<tabName>.
+ * Closes any existing connection first.
+ * When a "change" event arrives from the server (because another client saved),
+ * we re-fetch the tab content — but only if the user is not currently editing.
+ */
+function connectClipboardSSE(tabName) {
+    // Close previous connection
+    if (_sseSource) {
+        _sseSource.close();
+        _sseSource = null;
+    }
+
+    var url = '/clipboard/stream?tab=' + encodeURIComponent(tabName);
+    // For protected tabs, we cannot pass the token via EventSource URL cleanly.
+    // We rely on the tab already being accessible (token validated on GET /clipboard).
+    // If the tab is protected and we don't have the token yet, skip SSE — the
+    // token-unlock flow will call selectClipboardTab which re-calls us.
+    var token = clipboardTokenCache[tabName];
+    if (token) {
+        url += '&X-Tab-Token=' + encodeURIComponent(token);
+    }
+
+    var es = new EventSource(url);
+    _sseSource = es;
+
+    es.addEventListener('change', function (e) {
+        var changedTab = e.data.trim();
+        // Only react if we're still on the same tab
+        if (changedTab !== currentClipboardTab) return;
+        // Don't overwrite while the user has unsaved local edits.
+        // We use a dirty flag rather than checking activeElement so that
+        // users who only have focus (e.g. to read/copy) still receive updates.
+        if (_isLocallyDirty) return;
+        // Re-fetch content silently
+        fetchClipboardContent(changedTab);
+    });
+
+    es.addEventListener('error', function () {
+        // EventSource handles reconnection automatically.
+        // If permanently unavailable (e.g. tab deleted), the next selectClipboardTab will clean up.
+    });
+}
+
+/**
+ * Fetches the content of tabName and updates the textarea + meta bar.
+ * Does NOT change currentClipboardTab — used for silent background refreshes.
+ */
+function fetchClipboardContent(tabName) {
+    var headers = {};
+    var token = clipboardTokenCache[tabName];
+    if (token) headers['X-Tab-Token'] = token;
+
+    fetch('/clipboard?tab=' + encodeURIComponent(tabName), { headers: headers })
+        .then(function (r) {
+            if (!r.ok) return null;
+            return r.text();
+        })
+        .then(function (content) {
+            if (content === null || content === undefined) return;
+            document.getElementById('shared-clipboard-textarea').value = content;
+            document.getElementById('clipboard-char-count').textContent = 'chars: ' + content.length;
+            // Refresh tab metadata to update updatedAt
+            loadClipboardTabs(false);
+        })
+        .catch(function () { /* silent */ });
+}
+
 // ── Clipboard multi-tab management ───────────────────────────────────────────
 var currentClipboardTab = 'default';
 var clipboardTabsCache = [];
@@ -994,6 +1135,7 @@ function renderClipboardTabs(tabs) {
 
 function selectClipboardTab(name) {
     currentClipboardTab = name;
+    _isLocallyDirty = false; // switching tabs resets any local unsaved state
     var seq = ++_tabSelectionSeq; // capture sequence number — stale responses are discarded
 
     document.querySelectorAll('#clipboard-tabs-list .clipboard-tab-item').forEach(function (el) {
@@ -1027,6 +1169,8 @@ function selectClipboardTab(name) {
             var entry = clipboardTabsCache.find(function (t) { return t.name === name; });
             if (entry) updateClipboardMeta(entry);
             updateForgetTokenBtn();
+            // Connect SSE stream for real-time updates from other clients
+            connectClipboardSSE(name);
         })
         .catch(function (err) { if (seq === _tabSelectionSeq) console.error('Error loading tab:', err); });
 }
@@ -1042,26 +1186,47 @@ function showNewTabInput() {
     var row = document.getElementById('new-tab-input-row');
     row.style.display = 'flex';
     document.getElementById('new-tab-name').value = '';
+    document.getElementById('new-tab-protect').checked = false;
+    document.getElementById('new-tab-custom-token').value = '';
+    document.getElementById('new-tab-custom-token').style.display = 'none';
     document.getElementById('new-tab-name').focus();
 }
 
 function hideNewTabInput() {
     document.getElementById('new-tab-input-row').style.display = 'none';
+    document.getElementById('new-tab-protect').checked = false;
+    document.getElementById('new-tab-custom-token').value = '';
+    document.getElementById('new-tab-custom-token').style.display = 'none';
+}
+
+/** Shows or hides the optional custom-token password input. */
+function toggleCustomTokenInput(checked) {
+    var tokenInput = document.getElementById('new-tab-custom-token');
+    tokenInput.style.display = checked ? 'block' : 'none';
+    if (!checked) tokenInput.value = '';
 }
 
 function createClipboardTab() {
     var nameInput = document.getElementById('new-tab-name');
     var name = nameInput.value.trim();
     var protect = document.getElementById('new-tab-protect').checked;
+    var customToken = protect ? document.getElementById('new-tab-custom-token').value : '';
 
     if (!name) { showToast('Tab name cannot be empty', 'error'); return; }
     if (!/^[a-zA-Z0-9 _-]{1,50}$/.test(name)) {
         showToast('Invalid name (only letters, numbers, spaces, - and _)', 'error');
         return;
     }
+    if (protect && customToken !== '' && customToken.length < 6) {
+        showToast('Custom password must be at least 6 characters', 'error');
+        return;
+    }
 
     var headers = { 'Content-Type': 'text/plain' };
-    if (protect) headers['X-Tab-Token-Create'] = '1';
+    if (protect) {
+        headers['X-Tab-Token-Create'] = '1';
+        if (customToken) headers['X-Tab-Token-Value'] = customToken;
+    }
 
     fetch('/clipboard?tab=' + encodeURIComponent(name), {
         method: 'POST',
@@ -1074,17 +1239,22 @@ function createClipboardTab() {
             hideNewTabInput();
             currentClipboardTab = name;
             if (generatedToken) {
+                // Auto-generated: cache and reveal in modal
                 clipboardTokenCache[name] = generatedToken;
+            } else if (protect && customToken) {
+                // Custom token: cache it immediately — user typed it themselves
+                clipboardTokenCache[name] = customToken;
             }
-            // Clear textarea synchronously for the new (empty) tab.
-            // renderClipboardTabs (called by loadClipboardTabs) already marks it active
-            // via currentClipboardTab, so no extra selectClipboardTab call is needed.
             document.getElementById('shared-clipboard-textarea').value = '';
             document.getElementById('clipboard-char-count').textContent = 'chars: 0';
             setClipboardEditable(true);
             loadClipboardTabs(false);
+            // Connect SSE for the newly created tab immediately.
+            connectClipboardSSE(name);
             if (generatedToken) {
                 showTokenRevealModal(generatedToken, name);
+            } else if (protect && customToken) {
+                showToast('Tab "' + name + '" created with your password');
             } else {
                 showToast('Tab "' + name + '" created');
             }

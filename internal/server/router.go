@@ -38,6 +38,7 @@ func SetupRoutes(
 	registerRoute("/file-content", fileHandlers.FileContent(), user, pass)
 	registerRoute("/search-file", fileHandlers.Search(), user, pass)
 	registerRoute("/clipboard/tabs", clipboardHandler.ListTabs(), user, pass)
+	registerRoute("/clipboard/stream", clipboardHandler.ClipboardStream(), user, pass)
 	registerRoute("/clipboard", clipboardHandler.Handle(), user, pass)
 	registerRoute("/mkdir", fileHandlers.Mkdir(), user, pass)
 	registerRoute("/custom-path", customPathHandler.Handle(), user, pass)

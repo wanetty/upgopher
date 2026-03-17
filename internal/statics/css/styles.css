@@ -1242,6 +1242,44 @@ td a:hover {
     animation: spin 0.6s linear;
 }
 
+/* ── Auto-save toggle ────────────────────────────────────────────────────── */
+.autosave-toggle-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    color: #777;
+    padding: 2px 8px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    user-select: none;
+    transition: border-color 0.2s, color 0.2s;
+}
+
+.autosave-toggle-label:has(input:checked) {
+    border-color: #009879;
+    color: #009879;
+}
+
+.autosave-toggle-label input[type="checkbox"] {
+    display: none;
+}
+
+/* Auto-save status indicator */
+.autosave-status {
+    font-size: 11px;
+    font-style: italic;
+    min-width: 80px;
+    transition: color 0.2s;
+}
+
+.autosave-idle    { color: transparent; }
+.autosave-pending { color: #aaa; }
+.autosave-saving  { color: #e67e22; }
+.autosave-saved   { color: #009879; }
+.autosave-off     { color: #bbb; }
+
 /* Locked textarea state */
 #shared-clipboard-textarea.clipboard-locked {
     background: #f9f9f9;

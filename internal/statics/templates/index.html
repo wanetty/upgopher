@@ -143,10 +143,11 @@
                     <!-- New tab input row (hidden by default) -->
                     <div id="new-tab-input-row" style="display:none;">
                         <input type="text" id="new-tab-name" placeholder="Tab name (max 50 chars)" maxlength="50">
-                        <label class="token-protect-label" title="Generate a token to restrict read/write access to this tab">
-                            <input type="checkbox" id="new-tab-protect">
+                        <label class="token-protect-label" title="Protect this tab with a token" id="new-tab-protect-label">
+                            <input type="checkbox" id="new-tab-protect" onchange="toggleCustomTokenInput(this.checked)">
                             <i class="fa fa-lock"></i>
                         </label>
+                        <input type="password" id="new-tab-custom-token" placeholder="Custom password (or leave empty to auto-generate)" style="display:none; flex:1;" autocomplete="new-password">
                         <button class="btn btn-sm" onclick="createClipboardTab()"><i class="fa fa-check"></i></button>
                         <button class="btn btn-secondary btn-sm" onclick="hideNewTabInput()"><i class="fa fa-times"></i></button>
                     </div>
@@ -166,6 +167,11 @@
                         <div class="clipboard-meta">
                             <span id="clipboard-char-count">chars: 0</span>
                             <span id="clipboard-updated">updated: --</span>
+                            <span id="autosave-status" class="autosave-status autosave-idle"></span>
+                            <label class="autosave-toggle-label" title="Automatically save changes as you type">
+                                <input type="checkbox" id="clipboard-autosave-toggle" checked onchange="toggleAutoSave(this.checked)">
+                                <i class="fa fa-magic"></i> Auto-save
+                            </label>
                             <button id="refresh-clipboard-btn" class="btn-refresh-clipboard" onclick="refreshClipboardTab()" title="Refresh clipboard content">
                                 <i class="fa fa-refresh"></i>
                             </button>
