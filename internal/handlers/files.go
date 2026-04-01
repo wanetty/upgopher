@@ -516,7 +516,7 @@ func (fh *FileHandlers) ZipSelected() http.HandlerFunc {
 		}
 
 		if len(req.Paths) == 0 {
-			http.Error(w, "No files selected", http.StatusBadRequest)
+			http.Error(w, "No items selected", http.StatusBadRequest)
 			return
 		}
 
@@ -534,15 +534,15 @@ func (fh *FileHandlers) ZipSelected() http.HandlerFunc {
 				http.Error(w, "Bad path", http.StatusForbidden)
 				return
 			}
-			info, err := os.Stat(fullPath)
-			if err != nil || info.IsDir() {
+			_, err = os.Stat(fullPath)
+			if err != nil {
 				continue
 			}
 			fullPaths = append(fullPaths, fullPath)
 		}
 
 		if len(fullPaths) == 0 {
-			http.Error(w, "No valid files to zip", http.StatusBadRequest)
+			http.Error(w, "No valid items to zip", http.StatusBadRequest)
 			return
 		}
 
@@ -734,10 +734,81 @@ func (fh *FileHandlers) zipSpecificFiles(fullPaths []string) (string, error) {
 
 	zipWriter := zip.NewWriter(tempFile)
 	defer zipWriter.Close()
+	addedEntries := make(map[string]struct{})
 
 	for _, fullPath := range fullPaths {
 		info, err := os.Stat(fullPath)
 		if err != nil {
+			continue
+		}
+
+		if info.IsDir() {
+			err = filepath.Walk(fullPath, func(path string, walkInfo os.FileInfo, walkErr error) error {
+				if walkErr != nil {
+					if os.IsPermission(walkErr) {
+						return nil
+					}
+					return walkErr
+				}
+
+				if fh.DisableHiddenFiles && strings.HasPrefix(walkInfo.Name(), ".") {
+					if walkInfo.IsDir() {
+						return filepath.SkipDir
+					}
+					return nil
+				}
+
+				relPath, err := filepath.Rel(fh.Dir, path)
+				if err != nil {
+					return err
+				}
+				relPath = filepath.ToSlash(relPath)
+
+				header, err := zip.FileInfoHeader(walkInfo)
+				if err != nil {
+					return err
+				}
+
+				if walkInfo.IsDir() {
+					header.Name = relPath + "/"
+				} else {
+					header.Name = relPath
+					header.Method = zip.Deflate
+				}
+
+				if _, exists := addedEntries[header.Name]; exists {
+					return nil
+				}
+
+				writer, err := zipWriter.CreateHeader(header)
+				if err != nil {
+					return err
+				}
+				addedEntries[header.Name] = struct{}{}
+
+				if walkInfo.IsDir() {
+					return nil
+				}
+
+				file, err := os.Open(path)
+				if err != nil {
+					return err
+				}
+				_, copyErr := io.Copy(writer, file)
+				file.Close()
+				if copyErr != nil {
+					return copyErr
+				}
+
+				return nil
+			})
+			if err != nil {
+				return "", err
+			}
+			continue
+		}
+
+		if fh.DisableHiddenFiles && strings.HasPrefix(info.Name(), ".") {
 			continue
 		}
 
@@ -750,14 +821,19 @@ func (fh *FileHandlers) zipSpecificFiles(fullPaths []string) (string, error) {
 		if err != nil {
 			header.Name = info.Name()
 		} else {
-			header.Name = relPath
+			header.Name = filepath.ToSlash(relPath)
 		}
 		header.Method = zip.Deflate
+
+		if _, exists := addedEntries[header.Name]; exists {
+			continue
+		}
 
 		writer, err := zipWriter.CreateHeader(header)
 		if err != nil {
 			return "", err
 		}
+		addedEntries[header.Name] = struct{}{}
 
 		file, err := os.Open(fullPath)
 		if err != nil {

@@ -740,7 +740,7 @@ function updateDownloadSelectedBtn() {
 function downloadSelected() {
     var selected = getSelectedFiles();
     if (selected.length === 0) {
-        showToast('No files selected', 'error');
+        showToast('No items selected', 'error');
         return;
     }
 

@@ -1,9 +1,12 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -612,6 +615,134 @@ func TestZipPathTraversal(t *testing.T) {
 	if w.Code != http.StatusForbidden {
 		t.Errorf("Zip path traversal should return 403 Forbidden, got %d", w.Code)
 	}
+}
+
+func TestZipSelectedInvalidPathEncoding(t *testing.T) {
+	tempDir := t.TempDir()
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	handler := fh.ZipSelected()
+
+	body, err := json.Marshal(map[string][]string{"paths": {"%%%"}})
+	if err != nil {
+		t.Fatalf("failed to marshal request body: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/zip-selected", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid base64 path, got %d", w.Code)
+	}
+}
+
+func TestZipSelectedPathTraversal(t *testing.T) {
+	tempDir := t.TempDir()
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	handler := fh.ZipSelected()
+
+	malicious := base64.StdEncoding.EncodeToString([]byte("../../"))
+	body, err := json.Marshal(map[string][]string{"paths": {malicious}})
+	if err != nil {
+		t.Fatalf("failed to marshal request body: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/zip-selected", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for path traversal, got %d", w.Code)
+	}
+}
+
+func TestZipSelectedWithDirectoryAndDedup(t *testing.T) {
+	tempDir := t.TempDir()
+
+	treeDir := filepath.Join(tempDir, "tree")
+	emptyDir := filepath.Join(treeDir, "empty")
+	nestedDir := filepath.Join(treeDir, "nested")
+	if err := os.MkdirAll(emptyDir, 0755); err != nil {
+		t.Fatalf("failed to create empty dir: %v", err)
+	}
+	if err := os.MkdirAll(nestedDir, 0755); err != nil {
+		t.Fatalf("failed to create nested dir: %v", err)
+	}
+
+	nestedFile := filepath.Join(nestedDir, "hello.txt")
+	if err := os.WriteFile(nestedFile, []byte("hello world"), 0644); err != nil {
+		t.Fatalf("failed to create nested file: %v", err)
+	}
+
+	standalone := filepath.Join(tempDir, "single.txt")
+	if err := os.WriteFile(standalone, []byte("single"), 0644); err != nil {
+		t.Fatalf("failed to create standalone file: %v", err)
+	}
+
+	treePath := base64.StdEncoding.EncodeToString([]byte("tree"))
+	nestedFilePath := base64.StdEncoding.EncodeToString([]byte(filepath.ToSlash(filepath.Join("tree", "nested", "hello.txt"))))
+	standalonePath := base64.StdEncoding.EncodeToString([]byte("single.txt"))
+
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	handler := fh.ZipSelected()
+
+	body, err := json.Marshal(map[string][]string{"paths": {treePath, nestedFilePath, standalonePath}})
+	if err != nil {
+		t.Fatalf("failed to marshal request body: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/zip-selected", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for valid mixed selection, got %d: %s", w.Code, w.Body.String())
+	}
+
+	entries := readZipEntries(t, w.Body.Bytes())
+
+	if entries["tree/"] != 1 {
+		t.Fatalf("expected tree/ directory entry to exist once, got %d", entries["tree/"])
+	}
+	if entries["tree/empty/"] != 1 {
+		t.Fatalf("expected empty directory entry to exist once, got %d", entries["tree/empty/"])
+	}
+	if entries["tree/nested/"] != 1 {
+		t.Fatalf("expected nested directory entry to exist once, got %d", entries["tree/nested/"])
+	}
+	if entries["tree/nested/hello.txt"] != 1 {
+		t.Fatalf("expected nested file to be deduplicated to one entry, got %d", entries["tree/nested/hello.txt"])
+	}
+	if entries["single.txt"] != 1 {
+		t.Fatalf("expected standalone file entry to exist once, got %d", entries["single.txt"])
+	}
+}
+
+func readZipEntries(t *testing.T, body []byte) map[string]int {
+	t.Helper()
+
+	zipBytes, err := io.ReadAll(bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("failed to read zip body: %v", err)
+	}
+
+	r, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
+	if err != nil {
+		t.Fatalf("failed to open zip response: %v", err)
+	}
+
+	entries := make(map[string]int)
+	for _, f := range r.File {
+		entries[f.Name]++
+	}
+
+	return entries
 }
 
 // TestClipboardTabNameInjection tests that malicious tab names are rejected by the handler.

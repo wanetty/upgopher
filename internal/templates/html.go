@@ -46,7 +46,7 @@ func CreateFolderRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo,
 
 	return fmt.Sprintf(`
 		<tr>
-			<td class="col-checkbox"></td>
+			<td class="col-checkbox"><input type="checkbox" class="file-select-checkbox" data-path="%s" onchange="onCheckboxChange(this)"></td>
 			<td>%s</td>
 			<td>%s</td>
 			<td>-</td>
@@ -58,7 +58,7 @@ func CreateFolderRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo,
 				</div>
 			</td>
 		</tr>
-	`, folderLink, fileInfo.Mode(), lastModified, deleteBtn)
+	`, escapedencodedFilePath, folderLink, fileInfo.Mode(), lastModified, deleteBtn)
 }
 
 // CreateFileRow generates HTML for a file row in the file listing
