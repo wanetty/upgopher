@@ -16,4 +16,5 @@ upgopher
 # Dependency directories (remove the comment below to include it)
 # vendor/
 uploads/
-.github/skills/*
+.github/*
+.agents/*
