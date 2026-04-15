@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -30,18 +31,20 @@ type FileHandlers struct {
 	Quiet              bool
 	DisableHiddenFiles bool
 	ReadOnly           bool
+	MaxUploadSize      int64
 	ShowHiddenFiles    *bool
 	CustomPaths        *map[string]string
 	CustomPathsMutex   *sync.RWMutex
 }
 
 // NewFileHandlers creates a new FileHandlers instance
-func NewFileHandlers(dir string, quiet bool, disableHiddenFiles bool, readOnly bool, showHiddenFiles *bool, customPaths *map[string]string, customPathsMutex *sync.RWMutex) *FileHandlers {
+func NewFileHandlers(dir string, quiet bool, disableHiddenFiles bool, readOnly bool, maxUploadSize int64, showHiddenFiles *bool, customPaths *map[string]string, customPathsMutex *sync.RWMutex) *FileHandlers {
 	return &FileHandlers{
 		Dir:                dir,
 		Quiet:              quiet,
 		DisableHiddenFiles: disableHiddenFiles,
 		ReadOnly:           readOnly,
+		MaxUploadSize:      maxUploadSize,
 		ShowHiddenFiles:    showHiddenFiles,
 		CustomPaths:        customPaths,
 		CustomPathsMutex:   customPathsMutex,
@@ -587,9 +590,18 @@ func (fh *FileHandlers) handlePostRequest(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if fh.MaxUploadSize > 0 {
+		r.Body = http.MaxBytesReader(w, r.Body, fh.MaxUploadSize)
+	}
+
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, "File too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		http.Error(w, "Invalid upload request", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()

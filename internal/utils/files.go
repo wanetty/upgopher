@@ -21,8 +21,10 @@ func FormatFileSize(size int64) (float64, string) {
 		return float64(size), "bytes"
 	} else if size < 1000000 {
 		return float64(size) / 1000, "KBytes"
-	} else {
+	} else if size < 1000000000 {
 		return float64(size) / 1000000, "MBytes"
+	} else {
+		return float64(size) / 1000000000, "GBytes"
 	}
 }
 

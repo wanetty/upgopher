@@ -12,6 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"math/big"
 	"net/http"
 	"os"
@@ -28,7 +29,7 @@ var favicon embed.FS
 var logo embed.FS
 
 var quiet bool = false
-var version = "1.15.3"
+var version = "1.15.4"
 var showHiddenFiles bool = false
 var disableHiddenFiles bool = false
 var readOnly bool = false
@@ -49,9 +50,24 @@ func main() {
 	disableHiddenFilesarg := flag.Bool("disable-hidden-files", false, "disable showing hidden files")
 	readOnlyarg := flag.Bool("readonly", false, "readonly mode (disable upload and delete operations)")
 	maxTabs := flag.Int("max-tabs", 10, "maximum number of shared clipboard tabs")
+	maxUploadSizeGB := flag.Int64("max-upload-size", 0, "maximum upload size in GB (0 means unlimited)")
+	readTimeout := flag.Duration("read-timeout", 0, "server read timeout (0 means unlimited)")
 	flag.Parse()
 	quiet = *quietarg
 	readOnly = *readOnlyarg
+
+	if *maxUploadSizeGB < 0 {
+		log.Fatalf("max-upload-size must be >= 0")
+	}
+
+	const oneGiB int64 = 1024 * 1024 * 1024
+	var maxUploadSizeBytes int64
+	if *maxUploadSizeGB > 0 {
+		if *maxUploadSizeGB > math.MaxInt64/oneGiB {
+			log.Fatalf("max-upload-size is too large")
+		}
+		maxUploadSizeBytes = *maxUploadSizeGB * oneGiB
+	}
 
 	if !quiet {
 		log.Printf("Executing version %s", version)
@@ -81,6 +97,7 @@ func main() {
 		disableHiddenFiles,
 		readOnly,
 		*maxTabs,
+		maxUploadSizeBytes,
 		&showHiddenFiles,
 		&customPaths,
 		&customPathsMutex,
@@ -92,10 +109,10 @@ func main() {
 		*port = 443
 	}
 	addr := fmt.Sprintf("0.0.0.0:%d", *port)
-	startServer(addr, *useTLS, *certFile, *keyFile, *port)
+	startServer(addr, *useTLS, *certFile, *keyFile, *readTimeout)
 }
 
-func startServer(addr string, useTLS bool, certFile, keyFile string, _ int) {
+func startServer(addr string, useTLS bool, certFile, keyFile string, readTimeout time.Duration) {
 	if useTLS {
 		var cert tls.Certificate
 		var err error
@@ -123,7 +140,7 @@ func startServer(addr string, useTLS bool, certFile, keyFile string, _ int) {
 			TLSConfig: &tls.Config{
 				Certificates: []tls.Certificate{cert},
 			},
-			ReadTimeout:  60 * time.Second,
+			ReadTimeout:  readTimeout,
 			WriteTimeout: 60 * time.Second,
 			IdleTimeout:  120 * time.Second,
 		}
@@ -137,7 +154,7 @@ func startServer(addr string, useTLS bool, certFile, keyFile string, _ int) {
 	} else {
 		server := &http.Server{
 			Addr:         addr,
-			ReadTimeout:  60 * time.Second,
+			ReadTimeout:  readTimeout,
 			WriteTimeout: 60 * time.Second,
 			IdleTimeout:  120 * time.Second,
 		}

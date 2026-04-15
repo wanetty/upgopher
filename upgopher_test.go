@@ -253,6 +253,12 @@ func TestFormatFileSizeLogic(t *testing.T) {
 			wantValue: 5.0,
 			wantUnit:  "MBytes",
 		},
+		{
+			name:      "gigabytes",
+			bytes:     3000000000, // 3 GB in decimal
+			wantValue: 3.0,
+			wantUnit:  "GBytes",
+		},
 	}
 
 	for _, tt := range tests {
@@ -276,7 +282,7 @@ func TestFileUpload(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Create FileHandlers instance
-	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, 0, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.List()
 
 	// Create a test file to upload
@@ -328,5 +334,47 @@ func TestFileUpload(t *testing.T) {
 
 	if !bytes.Equal(content, fileContent) {
 		t.Errorf("Uploaded file content mismatch. Got %s, want %s", content, fileContent)
+	}
+}
+
+// TestFileUploadMaxSizeExceeded validates that uploads above a configured limit are rejected.
+func TestFileUploadMaxSizeExceeded(t *testing.T) {
+	tempDir := t.TempDir()
+
+	const maxUploadSize int64 = 8
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, maxUploadSize, &showHiddenFiles, &customPaths, &customPathsMutex)
+	handler := fh.List()
+
+	fileContent := []byte("this-content-is-too-large")
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	part, err := writer.CreateFormFile("file", "toolarge.txt")
+	if err != nil {
+		t.Fatalf("Failed to create form file: %v", err)
+	}
+
+	if _, err := part.Write(fileContent); err != nil {
+		t.Fatalf("Failed to write file content: %v", err)
+	}
+
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Failed to close writer: %v", err)
+	}
+
+	req := httptest.NewRequest("POST", "/", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	w := httptest.NewRecorder()
+
+	handler(w, req)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("Expected status 413 RequestEntityTooLarge, got %d", w.Code)
+	}
+
+	uploadedFilePath := filepath.Join(tempDir, "toolarge.txt")
+	if _, err := os.Stat(uploadedFilePath); !os.IsNotExist(err) {
+		t.Fatalf("File should not be created when size limit is exceeded")
 	}
 }

@@ -9,6 +9,22 @@ Primary goals when writing code:
 - Keep behavior predictable and backwards compatible.
 - Prefer small, testable, modular changes.
 
+## Mandatory Skill Loading Policy
+
+Before taking any action (analysis, edits, refactors, tests, or commands), load skill guidance from `.agents/skills`.
+
+Hard requirement:
+- Always read and apply `karpathy-guidelines` first.
+
+Then load additional relevant skills based on task domain, for example:
+- `golang-patterns`, `golang-backend-development`, `golang-pro` for Go implementation work.
+- `golang-testing` for tests and validation.
+- `rest-api-design` and `upgopher-rest-api-assistant` for API work.
+
+Execution rule:
+- Do not implement code changes until `karpathy-guidelines` has been consulted.
+- If a task touches multiple domains, consult all matching skills before editing.
+
 ## Project Architecture
 
 ### Modular Structure

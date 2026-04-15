@@ -18,13 +18,14 @@ func SetupRoutes(
 	disableHiddenFiles bool,
 	readOnly bool,
 	maxTabs int,
+	maxUploadSize int64,
 	showHiddenFiles *bool,
 	customPaths *map[string]string,
 	customPathsMutex *sync.RWMutex,
 	faviconFS *embed.FS,
 	logoFS *embed.FS,
 ) {
-	fileHandlers := handlers.NewFileHandlers(dir, quiet, disableHiddenFiles, readOnly, showHiddenFiles, customPaths, customPathsMutex)
+	fileHandlers := handlers.NewFileHandlers(dir, quiet, disableHiddenFiles, readOnly, maxUploadSize, showHiddenFiles, customPaths, customPathsMutex)
 	clipboardHandler := handlers.NewClipboardHandler(quiet, maxTabs)
 	customPathHandler := handlers.NewCustomPathHandler(dir, quiet, customPaths, customPathsMutex)
 	uiHandlers := handlers.NewUIHandlers(quiet, disableHiddenFiles, readOnly, showHiddenFiles, faviconFS, logoFS)

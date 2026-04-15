@@ -71,11 +71,15 @@ Usage of ./upgopher:
         disable showing hidden files
   -key string
         private key for HTTPS
+  -max-upload-size int
+        maximum upload size in GB (0 means unlimited)
   -pass string
         password for authentication
   -port int
         port number (default 9090)
   -q    quiet mode
+  -read-timeout duration
+        server read timeout (0 means unlimited)
   -readonly
         readonly mode (disable upload and delete operations)
   -ssl
@@ -119,6 +123,16 @@ This will start the server on the default port (9090) and store uploaded files i
 **Readonly mode (disable uploads and deletions):**
 ```bash
 ./upgopher -readonly
+```
+
+**Limit upload size to 1 GB:**
+```bash
+./upgopher -max-upload-size 1
+```
+
+**Set a custom read timeout (for large uploads on slower links):**
+```bash
+./upgopher -read-timeout 30m
 ```
 
 

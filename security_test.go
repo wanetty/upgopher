@@ -113,7 +113,7 @@ func TestDirectoryDeletionPrevention(t *testing.T) {
 
 	encodedPath := base64.StdEncoding.EncodeToString([]byte("testdir"))
 
-	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, 0, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.Delete()
 
 	req := httptest.NewRequest("GET", "/delete/?path="+encodedPath, nil)
@@ -148,7 +148,7 @@ func TestDeleteEmptyDirectory(t *testing.T) {
 
 	encodedPath := base64.StdEncoding.EncodeToString([]byte("emptydir"))
 
-	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, 0, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.Delete()
 
 	req := httptest.NewRequest("GET", "/delete/?path="+encodedPath, nil)
@@ -175,7 +175,7 @@ func TestDeleteDirectoryReadOnly(t *testing.T) {
 
 	encodedPath := base64.StdEncoding.EncodeToString([]byte("emptydir"))
 
-	fh := handlers.NewFileHandlers(tempDir, true, false, true, &showHiddenFiles, &customPaths, &customPathsMutex)
+	fh := handlers.NewFileHandlers(tempDir, true, false, true, 0, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.Delete()
 
 	req := httptest.NewRequest("GET", "/delete/?path="+encodedPath, nil)
@@ -194,7 +194,7 @@ func TestDeleteDirectoryReadOnly(t *testing.T) {
 // TestMkdirHandler tests the Mkdir handler
 func TestMkdirHandler(t *testing.T) {
 	tempDir := t.TempDir()
-	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, 0, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.Mkdir()
 
 	tests := []struct {
@@ -280,7 +280,7 @@ func TestMkdirHandler(t *testing.T) {
 // TestMkdirReadOnly tests that Mkdir is blocked in readonly mode
 func TestMkdirReadOnly(t *testing.T) {
 	tempDir := t.TempDir()
-	fh := handlers.NewFileHandlers(tempDir, true, false, true, &showHiddenFiles, &customPaths, &customPathsMutex)
+	fh := handlers.NewFileHandlers(tempDir, true, false, true, 0, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.Mkdir()
 
 	body := "folderName=test-folder&currentPath="
@@ -302,7 +302,7 @@ func TestMkdirReadOnly(t *testing.T) {
 // TestMkdirPathTraversal tests path traversal attacks via currentPath
 func TestMkdirPathTraversal(t *testing.T) {
 	tempDir := t.TempDir()
-	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, 0, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.Mkdir()
 
 	attacks := []string{
@@ -343,7 +343,7 @@ func TestMkdirDuplicate(t *testing.T) {
 		t.Fatalf("Failed to create existing dir: %v", err)
 	}
 
-	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, 0, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.Mkdir()
 
 	body := "folderName=existing&currentPath="
@@ -361,7 +361,7 @@ func TestMkdirDuplicate(t *testing.T) {
 // TestMkdirMethodNotAllowed tests that GET requests are rejected
 func TestMkdirMethodNotAllowed(t *testing.T) {
 	tempDir := t.TempDir()
-	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, 0, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.Mkdir()
 
 	req := httptest.NewRequest("GET", "/mkdir?folderName=test", nil)
@@ -475,7 +475,7 @@ func TestRawHandlerPathSecurity(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, 0, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.Raw()
 
 	attacks := []string{
@@ -545,7 +545,7 @@ func TestSearchHandlerPathSecurity(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, 0, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.Search()
 
 	// Attempt path traversal via search
@@ -571,7 +571,7 @@ func TestSearchHandlerPathSecurity(t *testing.T) {
 // TestUploadPathTraversal tests that uploaded filenames cannot escape the upload directory
 func TestUploadPathTraversal(t *testing.T) {
 	tempDir := t.TempDir()
-	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, 0, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.List()
 
 	maliciousName := "../../outside.txt"
@@ -603,7 +603,7 @@ func TestUploadPathTraversal(t *testing.T) {
 // TestZipPathTraversal tests that the zip endpoint cannot traverse outside the base directory
 func TestZipPathTraversal(t *testing.T) {
 	tempDir := t.TempDir()
-	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, 0, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.Zip()
 
 	encodedMalicious := base64.StdEncoding.EncodeToString([]byte("../../"))
@@ -619,7 +619,7 @@ func TestZipPathTraversal(t *testing.T) {
 
 func TestZipSelectedInvalidPathEncoding(t *testing.T) {
 	tempDir := t.TempDir()
-	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, 0, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.ZipSelected()
 
 	body, err := json.Marshal(map[string][]string{"paths": {"%%%"}})
@@ -640,7 +640,7 @@ func TestZipSelectedInvalidPathEncoding(t *testing.T) {
 
 func TestZipSelectedPathTraversal(t *testing.T) {
 	tempDir := t.TempDir()
-	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, 0, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.ZipSelected()
 
 	malicious := base64.StdEncoding.EncodeToString([]byte("../../"))
@@ -687,7 +687,7 @@ func TestZipSelectedWithDirectoryAndDedup(t *testing.T) {
 	nestedFilePath := base64.StdEncoding.EncodeToString([]byte(filepath.ToSlash(filepath.Join("tree", "nested", "hello.txt"))))
 	standalonePath := base64.StdEncoding.EncodeToString([]byte("single.txt"))
 
-	fh := handlers.NewFileHandlers(tempDir, true, false, false, &showHiddenFiles, &customPaths, &customPathsMutex)
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, 0, &showHiddenFiles, &customPaths, &customPathsMutex)
 	handler := fh.ZipSelected()
 
 	body, err := json.Marshal(map[string][]string{"paths": {treePath, nestedFilePath, standalonePath}})
