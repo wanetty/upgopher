@@ -26,6 +26,7 @@ func IsTextFile(fileName string) bool {
 		".h": true, ".swift": true, ".rb": true, ".php": true, ".sh": true, ".bat": true,
 		".log": true, ".csv": true, ".yml": true, ".yaml": true, ".toml": true, ".ini": true,
 		".cfg": true, ".conf": true, ".properties": true, ".env": true, ".sql": true,
+		".ps1": true, ".psm1": true, ".psd1": true,
 	}
 	return textExtensions[ext]
 }
