@@ -427,6 +427,64 @@ func (fh *FileHandlers) Search() http.HandlerFunc {
 	}
 }
 
+// Breadcrumbs returns JSON path segments for the given base64-encoded path.
+// Each segment has a display name and its own base64-encoded cumulative path,
+// so the frontend can render a clickable breadcrumb trail without ever
+// exposing the server's absolute directory.
+func (fh *FileHandlers) Breadcrumbs() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		encodedPath := r.URL.Query().Get("path")
+		if encodedPath == "" {
+			// Root: no segments
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"segments":[]}`)) //nolint:errcheck
+			return
+		}
+
+		decodedPath, err := base64.StdEncoding.DecodeString(encodedPath)
+		if err != nil {
+			http.Error(w, "Invalid path encoding", http.StatusBadRequest)
+			return
+		}
+
+		// Validate the full resolved path stays inside the shared dir
+		fullPath := filepath.Join(fh.Dir, string(decodedPath))
+		isSafe, err := security.IsSafePath(fh.Dir, fullPath)
+		if err != nil || !isSafe {
+			http.Error(w, "Bad path", http.StatusForbidden)
+			return
+		}
+
+		// Split relative path into segments and compute cumulative base64 paths
+		clean := filepath.ToSlash(filepath.Clean(string(decodedPath)))
+		parts := strings.Split(strings.Trim(clean, "/"), "/")
+
+		type segment struct {
+			Name string `json:"name"`
+			Path string `json:"path"`
+		}
+		segments := make([]segment, 0, len(parts))
+		for i, part := range parts {
+			if part == "" {
+				continue
+			}
+			cumulative := strings.Join(parts[:i+1], "/")
+			segments = append(segments, segment{
+				Name: part,
+				Path: base64.StdEncoding.EncodeToString([]byte(cumulative)),
+			})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"segments": segments})
+	}
+}
+
 // FileContent serves the text content of a file as JSON for in-browser viewing
 func (fh *FileHandlers) FileContent() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -575,9 +633,8 @@ func (fh *FileHandlers) handleGetRequest(w http.ResponseWriter, _ *http.Request,
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	backButton := templates.CreateBackButton(currentPath)
 	downloadButton := templates.CreateZipButton(currentPath)
-	w.Write([]byte(statics.GetTemplates(table, backButton, downloadButton, fh.DisableHiddenFiles, fh.ReadOnly)))
+	w.Write([]byte(statics.GetTemplates(table, currentPath, downloadButton, fh.DisableHiddenFiles, fh.ReadOnly)))
 }
 
 // handlePostRequest handles file upload

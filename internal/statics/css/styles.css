@@ -42,6 +42,77 @@ body {
     margin-bottom: 30px;
 }
 
+/* Breadcrumb Navigation */
+#breadcrumb-bar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 10px 16px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    margin-bottom: 16px;
+    flex-wrap: nowrap;
+    font-size: 14px;
+    min-height: 20px;
+    overflow: hidden;
+}
+
+.breadcrumb-segment {
+    color: #009879;
+    text-decoration: none;
+    font-weight: 500;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+    flex-shrink: 1;
+}
+
+.breadcrumb-segment:hover {
+    background-color: rgba(0, 152, 121, 0.1);
+    text-decoration: none;
+}
+
+.breadcrumb-segment.active {
+    color: #333;
+    font-weight: 600;
+    cursor: default;
+    background: #f0f0f0;
+    flex-shrink: 0;
+    max-width: 240px;
+}
+
+.breadcrumb-separator {
+    color: #aaa;
+    font-size: 18px;
+    line-height: 1;
+    user-select: none;
+    flex-shrink: 0;
+    padding: 0 2px;
+}
+
+/* On narrow screens, collapse middle segments (home + current always visible) */
+@media (max-width: 480px) {
+    .breadcrumb-segment:not(.active):not(:first-child) {
+        max-width: 32px;
+        overflow: hidden;
+        text-indent: -9999px;
+        position: relative;
+    }
+    .breadcrumb-segment:not(.active):not(:first-child)::after {
+        content: '\2026';
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        text-indent: 0;
+        color: #009879;
+    }
+}
+
 /* Tab Navigation */
 .tabs {
     display: flex;

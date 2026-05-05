@@ -28,6 +28,12 @@
 
             <!-- Files Tab Content -->
             <div id="files-tab" class="tab-content active">
+                <!-- Hidden input exposing the current encoded path to JavaScript -->
+                <input type="hidden" id="current-path-value" value="{{ .CurrentPath }}">
+
+                <!-- Breadcrumb Navigation -->
+                <nav id="breadcrumb-bar" aria-label="Directory path"></nav>
+
                 <div>
                     <table class="styled-table">
                         <thead>
@@ -112,9 +118,6 @@
                 {{ end }}
 
                 <div class="footer-buttons">
-                    <div class="footer-btn-group footer-btn-group--nav">
-                        {{ .BackButton }}
-                    </div>
                     <div class="footer-btn-group footer-btn-group--actions">
                         {{ .DownloadButton }}
                         <button id="downloadSelectedBtn" class="btn btn-download-selected" onclick="downloadSelected()">

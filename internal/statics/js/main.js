@@ -22,6 +22,53 @@ function escapeHtml(str) {
         .replace(/`/g, '&#96;');
 }
 
+// ── Breadcrumb navigation ─────────────────────────────────────────────────────
+
+/**
+ * Fetches path segments from the server and renders a clickable breadcrumb
+ * bar above the file table. Middle segments are collapsed to '…' on narrow
+ * screens via CSS (max-width / overflow hidden + ellipsis on .breadcrumb-segment).
+ */
+function loadBreadcrumbs() {
+    var bar = document.getElementById('breadcrumb-bar');
+    if (!bar) return;
+
+    var pathInput = document.getElementById('current-path-value');
+    var currentPath = pathInput ? pathInput.value : '';
+
+    // Always show the home crumb
+    var homeHtml = '<a class="breadcrumb-segment" href="/" title="Root"><i class="fa fa-home"></i></a>';
+
+    if (!currentPath) {
+        bar.innerHTML = homeHtml + '<span class="breadcrumb-segment active">Root</span>';
+        return;
+    }
+
+    fetch('/api/v1/breadcrumbs?path=' + encodeURIComponent(currentPath))
+        .then(function (r) {
+            if (!r.ok) throw new Error('breadcrumbs fetch failed');
+            return r.json();
+        })
+        .then(function (data) {
+            var html = homeHtml;
+            var segments = data.segments || [];
+            segments.forEach(function (seg, i) {
+                html += '<span class="breadcrumb-separator" aria-hidden="true">›</span>';
+                if (i === segments.length - 1) {
+                    // Current directory — not a link
+                    html += '<span class="breadcrumb-segment active">' + escapeHtml(seg.name) + '</span>';
+                } else {
+                    html += '<a class="breadcrumb-segment" href="/?path=' + encodeURIComponent(seg.path) + '">' + escapeHtml(seg.name) + '</a>';
+                }
+            });
+            bar.innerHTML = html;
+        })
+        .catch(function () {
+            // On any error just show the home link — fail silently
+            bar.innerHTML = homeHtml;
+        });
+}
+
 // Tab functionality
 function openTab(evt, tabName) {
     var i, tabcontent, tablinks;
@@ -54,6 +101,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Restore file selection state from sessionStorage
     initCheckboxes();
+
+    // Render the breadcrumb navigation bar
+    loadBreadcrumbs();
 
     // Update char count when textarea changes
     var clipboardTextarea = document.getElementById('shared-clipboard-textarea');
