@@ -17,7 +17,7 @@ var indexTemplate *template.Template
 type TemplateData struct {
 	CSS            template.CSS
 	Table          template.HTML
-	BackButton     template.HTML
+	CurrentPath    string
 	DownloadButton template.HTML
 	HiddenDisplay  string
 	ReadOnlyMode   bool
@@ -33,7 +33,7 @@ func init() {
 }
 
 // GetTemplates generates HTML with embedded resources
-func GetTemplates(table string, backButton string, downloadButton string, disableHiddenFiles bool, readOnly bool) string {
+func GetTemplates(table string, currentPath string, downloadButton string, disableHiddenFiles bool, readOnly bool) string {
 	cssBytes, err := fs.ReadFile(staticFiles, "css/styles.css")
 	if err != nil {
 		panic("Error reading CSS: " + err.Error())
@@ -56,7 +56,7 @@ func GetTemplates(table string, backButton string, downloadButton string, disabl
 	data := TemplateData{
 		CSS:            template.CSS(cssString),
 		Table:          template.HTML(table),
-		BackButton:     template.HTML(backButton),
+		CurrentPath:    currentPath,
 		DownloadButton: template.HTML(downloadButton),
 		HiddenDisplay:  hiddenDisplay,
 		ReadOnlyMode:   readOnly,

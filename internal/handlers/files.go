@@ -427,6 +427,191 @@ func (fh *FileHandlers) Search() http.HandlerFunc {
 	}
 }
 
+// Breadcrumbs returns JSON path segments for the given base64-encoded path.
+// Each segment has a display name and its own base64-encoded cumulative path,
+// so the frontend can render a clickable breadcrumb trail without ever
+// exposing the server's absolute directory.
+func (fh *FileHandlers) Breadcrumbs() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		encodedPath := r.URL.Query().Get("path")
+		if encodedPath == "" {
+			// Root: no segments
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"segments":[]}`)) //nolint:errcheck
+			return
+		}
+
+		decodedPath, err := base64.StdEncoding.DecodeString(encodedPath)
+		if err != nil {
+			http.Error(w, "Invalid path encoding", http.StatusBadRequest)
+			return
+		}
+
+		// Validate the full resolved path stays inside the shared dir
+		fullPath := filepath.Join(fh.Dir, string(decodedPath))
+		isSafe, err := security.IsSafePath(fh.Dir, fullPath)
+		if err != nil || !isSafe {
+			http.Error(w, "Bad path", http.StatusForbidden)
+			return
+		}
+
+		// Split relative path into segments and compute cumulative base64 paths
+		clean := filepath.ToSlash(filepath.Clean(string(decodedPath)))
+		parts := strings.Split(strings.Trim(clean, "/"), "/")
+
+		type segment struct {
+			Name string `json:"name"`
+			Path string `json:"path"`
+		}
+		segments := make([]segment, 0, len(parts))
+		for i, part := range parts {
+			if part == "" {
+				continue
+			}
+			cumulative := strings.Join(parts[:i+1], "/")
+			segments = append(segments, segment{
+				Name: part,
+				Path: base64.StdEncoding.EncodeToString([]byte(cumulative)),
+			})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"segments": segments})
+	}
+}
+
+// treeNode is the JSON-serialisable representation of one directory in the tree.
+type treeNode struct {
+	Name        string      `json:"name"`
+	Path        string      `json:"path"`        // base64-encoded relative path (empty = root)
+	Children    []*treeNode `json:"children"`    // populated up to the requested depth
+	HasChildren bool        `json:"hasChildren"` // true if the directory contains at least one sub-dir
+}
+
+// Tree returns the directory structure as a JSON tree.
+//
+// Query parameters:
+//
+//	path  – base64-encoded relative path (empty = shared root)
+//	depth – integer; 1 = immediate children only, -1 = unlimited; default 1
+func (fh *FileHandlers) Tree() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		if !fh.Quiet {
+			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
+		}
+
+		// --- resolve starting path ---
+		encodedPath := r.URL.Query().Get("path")
+		var relRoot string
+		if encodedPath != "" {
+			decoded, err := base64.StdEncoding.DecodeString(encodedPath)
+			if err != nil {
+				http.Error(w, "Invalid path encoding", http.StatusBadRequest)
+				return
+			}
+			relRoot = string(decoded)
+		}
+
+		absRoot := filepath.Join(fh.Dir, relRoot)
+		isSafe, err := security.IsSafePath(fh.Dir, absRoot)
+		if err != nil || !isSafe {
+			http.Error(w, "Bad path", http.StatusForbidden)
+			return
+		}
+
+		info, err := os.Stat(absRoot)
+		if err != nil || !info.IsDir() {
+			http.Error(w, "Path is not a directory", http.StatusBadRequest)
+			return
+		}
+
+		// --- parse depth ---
+		depth := 1
+		if d := r.URL.Query().Get("depth"); d != "" {
+			if _, scanErr := fmt.Sscanf(d, "%d", &depth); scanErr != nil {
+				http.Error(w, "Invalid depth parameter", http.StatusBadRequest)
+				return
+			}
+		}
+
+		// --- build tree ---
+		root := fh.buildTreeNode(absRoot, relRoot, depth)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(root) //nolint:errcheck
+	}
+}
+
+// buildTreeNode recursively constructs the tree up to maxDepth levels deep.
+// maxDepth == 0 means "don't recurse — just check for children"; -1 means unlimited.
+func (fh *FileHandlers) buildTreeNode(absPath, relPath string, maxDepth int) *treeNode {
+	name := filepath.Base(absPath)
+	if relPath == "" {
+		name = "root"
+	}
+
+	encodedPath := ""
+	if relPath != "" {
+		encodedPath = base64.StdEncoding.EncodeToString([]byte(relPath))
+	}
+
+	node := &treeNode{
+		Name:     name,
+		Path:     encodedPath,
+		Children: []*treeNode{},
+	}
+
+	entries, err := os.ReadDir(absPath)
+	if err != nil {
+		return node
+	}
+
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		if e.Name()[0] == '.' && (!*fh.ShowHiddenFiles || fh.DisableHiddenFiles) {
+			continue
+		}
+
+		childRel := filepath.Join(relPath, e.Name())
+		childAbs := filepath.Join(absPath, e.Name())
+
+		// Security check on each child path
+		isSafe, err := security.IsSafePath(fh.Dir, childAbs)
+		if err != nil || !isSafe {
+			continue
+		}
+
+		node.HasChildren = true
+
+		if maxDepth == 0 {
+			// Caller only wants to know if there are children — don't recurse
+			break
+		}
+
+		nextDepth := maxDepth - 1
+		if maxDepth == -1 {
+			nextDepth = -1 // unlimited
+		}
+
+		child := fh.buildTreeNode(childAbs, childRel, nextDepth)
+		node.Children = append(node.Children, child)
+	}
+
+	return node
+}
+
 // FileContent serves the text content of a file as JSON for in-browser viewing
 func (fh *FileHandlers) FileContent() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -575,9 +760,8 @@ func (fh *FileHandlers) handleGetRequest(w http.ResponseWriter, _ *http.Request,
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	backButton := templates.CreateBackButton(currentPath)
 	downloadButton := templates.CreateZipButton(currentPath)
-	w.Write([]byte(statics.GetTemplates(table, backButton, downloadButton, fh.DisableHiddenFiles, fh.ReadOnly)))
+	w.Write([]byte(statics.GetTemplates(table, currentPath, downloadButton, fh.DisableHiddenFiles, fh.ReadOnly)))
 }
 
 // handlePostRequest handles file upload

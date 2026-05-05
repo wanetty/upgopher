@@ -121,13 +121,6 @@ func CreateFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo, c
 		downloadLink, copyURLButton, customPathButton, viewButton, searchButton, deleteLink)
 }
 
-// CreateBackButton generates HTML for the back button
-func CreateBackButton(currentPath string) string {
-	if currentPath != "" {
-		return `<button class="btn" onclick="window.location.href='/'"><i class="fa fa-arrow-left"></i> Back</button>`
-	}
-	return ""
-}
 
 // CreateZipButton generates HTML for the zip download button
 func CreateZipButton(currentPath string) string {
