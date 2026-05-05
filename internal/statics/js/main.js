@@ -22,6 +22,53 @@ function escapeHtml(str) {
         .replace(/`/g, '&#96;');
 }
 
+// ── Breadcrumb navigation ─────────────────────────────────────────────────────
+
+/**
+ * Fetches path segments from the server and renders a clickable breadcrumb
+ * bar above the file table. Middle segments are collapsed to '…' on narrow
+ * screens via CSS (max-width / overflow hidden + ellipsis on .breadcrumb-segment).
+ */
+function loadBreadcrumbs() {
+    var bar = document.getElementById('breadcrumb-bar');
+    if (!bar) return;
+
+    var pathInput = document.getElementById('current-path-value');
+    var currentPath = pathInput ? pathInput.value : '';
+
+    // Always show the home crumb
+    var homeHtml = '<a class="breadcrumb-segment" href="/" title="Root"><i class="fa fa-home"></i></a>';
+
+    if (!currentPath) {
+        bar.innerHTML = homeHtml + '<span class="breadcrumb-segment active">Root</span>';
+        return;
+    }
+
+    fetch('/api/v1/breadcrumbs?path=' + encodeURIComponent(currentPath))
+        .then(function (r) {
+            if (!r.ok) throw new Error('breadcrumbs fetch failed');
+            return r.json();
+        })
+        .then(function (data) {
+            var html = homeHtml;
+            var segments = data.segments || [];
+            segments.forEach(function (seg, i) {
+                html += '<span class="breadcrumb-separator" aria-hidden="true">›</span>';
+                if (i === segments.length - 1) {
+                    // Current directory — not a link
+                    html += '<span class="breadcrumb-segment active">' + escapeHtml(seg.name) + '</span>';
+                } else {
+                    html += '<a class="breadcrumb-segment" href="/?path=' + encodeURIComponent(seg.path) + '">' + escapeHtml(seg.name) + '</a>';
+                }
+            });
+            bar.innerHTML = html;
+        })
+        .catch(function () {
+            // On any error just show the home link — fail silently
+            bar.innerHTML = homeHtml;
+        });
+}
+
 // Tab functionality
 function openTab(evt, tabName) {
     var i, tabcontent, tablinks;
@@ -54,6 +101,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Restore file selection state from sessionStorage
     initCheckboxes();
+
+    // Render the breadcrumb navigation bar
+    loadBreadcrumbs();
 
     // Update char count when textarea changes
     var clipboardTextarea = document.getElementById('shared-clipboard-textarea');
@@ -259,7 +309,7 @@ function uploadFile(file) {
 
     // Upload complete event
     xhr.addEventListener('load', function () {
-        if (xhr.status === 200) {
+        if (xhr.status === 200 || xhr.status === 201) {
             updateUploadProgress(uploadTotalSize, uploadTotalSize, 100);
             setTimeout(() => {
                 hideUploadProgress();
@@ -296,6 +346,7 @@ function uploadFile(file) {
     // Send the request - preserve current directory path
     const uploadUrl = '/' + window.location.search;
     xhr.open('POST', uploadUrl);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     xhr.send(formData);
 }
 
@@ -396,6 +447,7 @@ document.addEventListener('keydown', function (event) {
         closeFileViewer();
         closeNewFolderModal();
         closeErrorModal();
+        closeTreePanel();
     }
     if (event.key === 'Enter' && document.getElementById('newFolderModal').style.display === 'flex') {
         event.preventDefault();
@@ -1531,4 +1583,281 @@ function deleteFolder(encodedPath) {
         .catch(function (error) {
             showErrorModal('Network error: ' + escapeHtml(error.message));
         });
+}
+
+// ── Directory Tree Panel ──────────────────────────────────────────────────────
+
+var _treeLoaded = false; // whether the root tree has been fetched at least once
+
+/**
+ * Toggle the tree sidebar open/closed.
+ * On first open the root tree is fetched from /api/v1/tree.
+ */
+function toggleTreePanel() {
+    var overlay = document.getElementById('treePanelOverlay');
+    if (!overlay) return;
+
+    if (overlay.style.display === 'none' || overlay.style.display === '') {
+        overlay.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+        if (!_treeLoaded) {
+            loadTreeRoot();
+        }
+    } else {
+        closeTreePanel();
+    }
+}
+
+/** Close and hide the tree panel. */
+function closeTreePanel() {
+    var overlay = document.getElementById('treePanelOverlay');
+    if (!overlay) return;
+    overlay.style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
+/**
+ * Fetch the root tree (depth=1) and render it into #treeContainer.
+ * Subsequent lazy-loads happen per-node inside renderTreeNode.
+ */
+function loadTreeRoot() {
+    var container = document.getElementById('treeContainer');
+    if (!container) return;
+
+    container.innerHTML = '<div class="tree-loading">Loading directory tree…</div>';
+
+    fetch('/api/v1/tree?depth=1')
+        .then(function (r) {
+            if (!r.ok) throw new Error('Failed to load tree');
+            return r.json();
+        })
+        .then(function (root) {
+            _treeLoaded = true;
+            container.innerHTML = '';
+
+            if (!root.children || root.children.length === 0) {
+                container.innerHTML = '<div class="tree-empty">No folders found.</div>';
+                return;
+            }
+
+            // Render root's children directly (the shared root itself is implicit)
+            var rootEl = document.createElement('div');
+            rootEl.className = 'tree-root';
+            renderTreeNode(root, rootEl, true);
+            container.appendChild(rootEl);
+        })
+        .catch(function (err) {
+            container.innerHTML = '<div class="tree-loading">Error loading tree: ' + escapeHtml(err.message) + '</div>';
+        });
+}
+
+/**
+ * Read the current page path from the hidden input so we can highlight
+ * the active folder in the tree.
+ */
+function getCurrentTreePath() {
+    var pathInput = document.getElementById('current-path-value');
+    return pathInput ? pathInput.value : '';
+}
+
+/**
+ * Build the DOM for one tree node and append it to parentEl.
+ *
+ * @param {object}  node       - JSON node from /api/v1/tree
+ * @param {Element} parentEl   - DOM element to append into
+ * @param {boolean} isRoot     - true when rendering the shared-root node
+ */
+function renderTreeNode(node, parentEl, isRoot) {
+    var currentPath = getCurrentTreePath();
+    var isActive = (node.path !== '' && node.path === currentPath) ||
+                   (node.path === '' && currentPath === '');
+
+    var nodeEl = document.createElement('div');
+    nodeEl.className = 'tree-node';
+    if (isRoot) nodeEl.className += ' tree-root';
+
+    // --- row ---
+    var rowEl = document.createElement('div');
+    rowEl.className = 'tree-node-row' + (isActive ? ' tree-active' : '');
+
+    // Toggle button (only if node has children)
+    var toggleEl;
+    if (node.hasChildren || (node.children && node.children.length > 0)) {
+        toggleEl = document.createElement('button');
+        toggleEl.className = 'tree-toggle';
+        toggleEl.innerHTML = '&#9658;'; // ▶
+        toggleEl.title = 'Expand / Collapse';
+    } else {
+        var spacer = document.createElement('span');
+        spacer.className = 'tree-toggle-spacer';
+        rowEl.appendChild(spacer);
+    }
+
+    // Folder icon
+    var iconEl = document.createElement('i');
+    iconEl.className = 'fa fa-folder tree-icon';
+
+    // Label (click = navigate)
+    var labelEl = document.createElement('span');
+    labelEl.className = 'tree-label';
+    labelEl.textContent = node.name;
+    labelEl.title = node.name;
+    if (node.path !== undefined) {
+        (function (encodedPath) {
+            labelEl.addEventListener('click', function () {
+                navigateToFolder(encodedPath);
+            });
+        })(node.path);
+    }
+
+    // Children container (lazy)
+    var childrenEl = document.createElement('div');
+    childrenEl.className = 'tree-children';
+    var childrenPopulated = false;
+
+    // Populate pre-loaded children
+    if (node.children && node.children.length > 0) {
+        node.children.forEach(function (child) {
+            renderTreeNode(child, childrenEl, false);
+        });
+        childrenPopulated = true;
+    }
+
+    // Wire up toggle
+    if (toggleEl) {
+        (function (te, ce, nodePath, populated) {
+            te.addEventListener('click', function () {
+                var isOpen = ce.classList.contains('expanded');
+                if (isOpen) {
+                    ce.classList.remove('expanded');
+                    te.classList.remove('open');
+                    te.innerHTML = '&#9658;';
+                    iconEl.className = 'fa fa-folder tree-icon';
+                } else {
+                    // Lazy-load children if not yet done
+                    if (!populated && nodePath !== '') {
+                        ce.innerHTML = '<div class="tree-loading-inline"><i class="fa fa-spinner"></i> Loading…</div>';
+                        loadTreeChildren(nodePath, ce, function () {
+                            childrenPopulated = true;
+                            populated = true;
+                        });
+                    }
+                    ce.classList.add('expanded');
+                    te.classList.add('open');
+                    te.innerHTML = '&#9660;';
+                    iconEl.className = 'fa fa-folder-open tree-icon';
+                }
+            });
+        })(toggleEl, childrenEl, node.path, childrenPopulated);
+
+        rowEl.appendChild(toggleEl);
+    }
+
+    rowEl.appendChild(iconEl);
+    rowEl.appendChild(labelEl);
+    nodeEl.appendChild(rowEl);
+    nodeEl.appendChild(childrenEl);
+    parentEl.appendChild(nodeEl);
+
+    // Auto-expand if current path starts with this node's path
+    if (isActive && toggleEl) {
+        toggleEl.click();
+    }
+}
+
+/**
+ * Fetch the immediate children of a folder and render them into containerEl.
+ *
+ * @param {string}   encodedPath  - base64-encoded relative path
+ * @param {Element}  containerEl  - .tree-children element to populate
+ * @param {Function} onDone       - called after rendering
+ */
+function loadTreeChildren(encodedPath, containerEl, onDone) {
+    fetch('/api/v1/tree?path=' + encodeURIComponent(encodedPath) + '&depth=1')
+        .then(function (r) {
+            if (!r.ok) throw new Error('fetch failed');
+            return r.json();
+        })
+        .then(function (node) {
+            containerEl.innerHTML = '';
+            if (!node.children || node.children.length === 0) {
+                containerEl.innerHTML = '<div class="tree-empty" style="padding:4px 12px;font-size:12px;">Empty</div>';
+            } else {
+                node.children.forEach(function (child) {
+                    renderTreeNode(child, containerEl, false);
+                });
+            }
+            if (onDone) onDone();
+        })
+        .catch(function (err) {
+            containerEl.innerHTML = '<div class="tree-loading-inline">Error: ' + escapeHtml(err.message) + '</div>';
+        });
+}
+
+/**
+ * Expand every node in the tree by fetching the full tree with depth=-1.
+ * This replaces the lazily-built DOM with a complete tree.
+ */
+function expandAllTree() {
+    var container = document.getElementById('treeContainer');
+    if (!container) return;
+
+    container.innerHTML = '<div class="tree-loading">Loading full tree…</div>';
+
+    fetch('/api/v1/tree?depth=10') // cap at 10 levels for performance
+        .then(function (r) {
+            if (!r.ok) throw new Error('Failed to load tree');
+            return r.json();
+        })
+        .then(function (root) {
+            container.innerHTML = '';
+            if (!root.children || root.children.length === 0) {
+                container.innerHTML = '<div class="tree-empty">No folders found.</div>';
+                return;
+            }
+            var rootEl = document.createElement('div');
+            rootEl.className = 'tree-root';
+            renderTreeNode(root, rootEl, true);
+            container.appendChild(rootEl);
+
+            // Expand all toggle buttons in the rendered tree
+            container.querySelectorAll('.tree-toggle').forEach(function (btn) {
+                if (!btn.classList.contains('open')) {
+                    btn.click();
+                }
+            });
+        })
+        .catch(function (err) {
+            container.innerHTML = '<div class="tree-loading">Error: ' + escapeHtml(err.message) + '</div>';
+        });
+}
+
+/** Collapse all expanded nodes back to root level. */
+function collapseAllTree() {
+    var container = document.getElementById('treeContainer');
+    if (!container) return;
+
+    container.querySelectorAll('.tree-children.expanded').forEach(function (el) {
+        el.classList.remove('expanded');
+    });
+    container.querySelectorAll('.tree-toggle.open').forEach(function (btn) {
+        btn.classList.remove('open');
+        btn.innerHTML = '&#9658;';
+    });
+    container.querySelectorAll('.fa-folder-open').forEach(function (icon) {
+        icon.className = 'fa fa-folder tree-icon';
+    });
+}
+
+/**
+ * Navigate the main file listing to the given folder.
+ *
+ * @param {string} encodedPath - base64-encoded relative path (empty = root)
+ */
+function navigateToFolder(encodedPath) {
+    if (encodedPath === '' || encodedPath === null || encodedPath === undefined) {
+        window.location.href = '/';
+    } else {
+        window.location.href = '/?path=' + encodeURIComponent(encodedPath);
+    }
 }

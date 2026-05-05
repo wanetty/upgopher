@@ -26,6 +26,7 @@ func IsTextFile(fileName string) bool {
 		".h": true, ".swift": true, ".rb": true, ".php": true, ".sh": true, ".bat": true,
 		".log": true, ".csv": true, ".yml": true, ".yaml": true, ".toml": true, ".ini": true,
 		".cfg": true, ".conf": true, ".properties": true, ".env": true, ".sql": true,
+		".ps1": true, ".psm1": true, ".psd1": true,
 	}
 	return textExtensions[ext]
 }
@@ -120,13 +121,6 @@ func CreateFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo, c
 		downloadLink, copyURLButton, customPathButton, viewButton, searchButton, deleteLink)
 }
 
-// CreateBackButton generates HTML for the back button
-func CreateBackButton(currentPath string) string {
-	if currentPath != "" {
-		return `<button class="btn" onclick="window.location.href='/'"><i class="fa fa-arrow-left"></i> Back</button>`
-	}
-	return ""
-}
 
 // CreateZipButton generates HTML for the zip download button
 func CreateZipButton(currentPath string) string {

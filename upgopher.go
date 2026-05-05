@@ -29,7 +29,7 @@ var favicon embed.FS
 var logo embed.FS
 
 var quiet bool = false
-var version = "1.15.6"
+var version = "1.16.0"
 var showHiddenFiles bool = false
 var disableHiddenFiles bool = false
 var readOnly bool = false
@@ -52,6 +52,8 @@ func main() {
 	maxTabs := flag.Int("max-tabs", 10, "maximum number of shared clipboard tabs")
 	maxUploadSizeGB := flag.Int64("max-upload-size", 0, "maximum upload size in GB (0 means unlimited)")
 	readTimeout := flag.Duration("read-timeout", 0, "server read timeout (0 means unlimited)")
+	readHeaderTimeout := flag.Duration("read-header-timeout", 10*time.Second, "server read header timeout")
+	writeTimeout := flag.Duration("write-timeout", 0, "server write timeout (0 means unlimited)")
 	flag.Parse()
 	quiet = *quietarg
 	readOnly = *readOnlyarg
@@ -109,10 +111,10 @@ func main() {
 		*port = 443
 	}
 	addr := fmt.Sprintf("0.0.0.0:%d", *port)
-	startServer(addr, *useTLS, *certFile, *keyFile, *readTimeout)
+	startServer(addr, *useTLS, *certFile, *keyFile, *readTimeout, *readHeaderTimeout, *writeTimeout)
 }
 
-func startServer(addr string, useTLS bool, certFile, keyFile string, readTimeout time.Duration) {
+func startServer(addr string, useTLS bool, certFile, keyFile string, readTimeout time.Duration, readHeaderTimeout time.Duration, writeTimeout time.Duration) {
 	if useTLS {
 		var cert tls.Certificate
 		var err error
@@ -140,9 +142,10 @@ func startServer(addr string, useTLS bool, certFile, keyFile string, readTimeout
 			TLSConfig: &tls.Config{
 				Certificates: []tls.Certificate{cert},
 			},
-			ReadTimeout:  readTimeout,
-			WriteTimeout: 60 * time.Second,
-			IdleTimeout:  120 * time.Second,
+			ReadTimeout:       readTimeout,
+			ReadHeaderTimeout: readHeaderTimeout,
+			WriteTimeout:      writeTimeout,
+			IdleTimeout:       120 * time.Second,
 		}
 
 		if !quiet {
@@ -153,10 +156,11 @@ func startServer(addr string, useTLS bool, certFile, keyFile string, readTimeout
 		}
 	} else {
 		server := &http.Server{
-			Addr:         addr,
-			ReadTimeout:  readTimeout,
-			WriteTimeout: 60 * time.Second,
-			IdleTimeout:  120 * time.Second,
+			Addr:              addr,
+			ReadTimeout:       readTimeout,
+			ReadHeaderTimeout: readHeaderTimeout,
+			WriteTimeout:      writeTimeout,
+			IdleTimeout:       120 * time.Second,
 		}
 
 		if !quiet {

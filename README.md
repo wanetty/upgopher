@@ -8,6 +8,7 @@ Upgopher is a zero-dependency Go web server for file sharing. It provides a brow
 
 ![Example Photo](./static/example.png)
 ![Example Photo 2](./static/example2.png)
+![Directory Tree](./static/directorytree_exmaple.png)
 
 ## Features
 * Users can upload files by selecting a file and clicking the "Upload" button
@@ -16,6 +17,8 @@ Upgopher is a zero-dependency Go web server for file sharing. It provides a brow
 * Basic authentication is available to restrict access to the server. To use it, set the -user and -pass flags with the desired username and password.
 * Traffic via HTTPS with self-signed certificate generation or custom certificates
 * Browse through folders and upload files with drag-and-drop support
+* Directory tree sidebar with expand/collapse controls
+* Breadcrumb navigation with clickable path segments
 * Copy file URLs to clipboard with one click for easy sharing
 * Search within text files directly from the web interface
 * Create custom path aliases for easy file access
@@ -73,6 +76,8 @@ Usage of ./upgopher:
         private key for HTTPS
   -max-upload-size int
         maximum upload size in GB (0 means unlimited)
+  -max-tabs int
+        maximum number of shared clipboard tabs
   -pass string
         password for authentication
   -port int
@@ -80,6 +85,10 @@ Usage of ./upgopher:
   -q    quiet mode
   -read-timeout duration
         server read timeout (0 means unlimited)
+  -read-header-timeout duration
+        server read header timeout
+  -write-timeout duration
+        server write timeout (0 means unlimited)
   -readonly
         readonly mode (disable upload and delete operations)
   -ssl
@@ -130,10 +139,22 @@ This will start the server on the default port (9090) and store uploaded files i
 ./upgopher -max-upload-size 1
 ```
 
+**Limit shared clipboard tabs to 5:**
+```bash
+./upgopher -max-tabs 5
+```
+
 **Set a custom read timeout (for large uploads on slower links):**
 ```bash
 ./upgopher -read-timeout 30m
 ```
+
+**Recommended for large uploads:**
+```bash
+./upgopher -read-timeout 0 -write-timeout 0
+```
+
+Note: Cloudflare Quick Tunnels are intended for testing and can impose limits. For reliable large uploads, prefer a full Cloudflare Tunnel.
 
 
 ## Security
