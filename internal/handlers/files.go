@@ -582,6 +582,10 @@ func (fh *FileHandlers) handleGetRequest(w http.ResponseWriter, _ *http.Request,
 
 // handlePostRequest handles file upload
 func (fh *FileHandlers) handlePostRequest(w http.ResponseWriter, r *http.Request, dir string, currentPath string) {
+	respondUploadTooLarge := func() {
+		http.Error(w, "File too large", http.StatusRequestEntityTooLarge)
+	}
+
 	if fh.ReadOnly {
 		http.Error(w, "Upload operation is disabled in readonly mode", http.StatusForbidden)
 		if !fh.Quiet {
@@ -594,38 +598,109 @@ func (fh *FileHandlers) handlePostRequest(w http.ResponseWriter, r *http.Request
 		r.Body = http.MaxBytesReader(w, r.Body, fh.MaxUploadSize)
 	}
 
-	file, header, err := r.FormFile("file")
+	multipartReader, err := r.MultipartReader()
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
-			http.Error(w, "File too large", http.StatusRequestEntityTooLarge)
+			respondUploadTooLarge()
 			return
 		}
 		http.Error(w, "Invalid upload request", http.StatusBadRequest)
 		return
 	}
-	defer file.Close()
 
-	// Strip any directory components from the filename to prevent path traversal
-	filename := filepath.Base(header.Filename)
-	targetPath := filepath.Join(dir, filename)
-	isSafe, err := security.IsSafePath(dir, targetPath)
-	if err != nil || !isSafe {
-		http.Error(w, "Bad path", http.StatusForbidden)
+	var uploaded bool
+	for {
+		part, err := multipartReader.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			var maxBytesErr *http.MaxBytesError
+			if errors.As(err, &maxBytesErr) {
+				respondUploadTooLarge()
+				return
+			}
+			http.Error(w, "Invalid upload request", http.StatusBadRequest)
+			return
+		}
+		if part.FormName() != "file" {
+			part.Close()
+			continue
+		}
+
+		filename := filepath.Base(part.FileName())
+		if filename == "." || filename == "" {
+			part.Close()
+			http.Error(w, "Invalid upload request", http.StatusBadRequest)
+			return
+		}
+		targetPath := filepath.Join(dir, filename)
+		isSafe, err := security.IsSafePath(dir, targetPath)
+		if err != nil || !isSafe {
+			part.Close()
+			http.Error(w, "Bad path", http.StatusForbidden)
+			return
+		}
+
+		tempFile, err := os.CreateTemp(dir, ".upload-*")
+		if err != nil {
+			part.Close()
+			http.Error(w, "Failed to prepare upload", http.StatusInternalServerError)
+			return
+		}
+		tempName := tempFile.Name()
+		isTempSafe, err := security.IsSafePath(dir, tempName)
+		if err != nil || !isTempSafe {
+			tempFile.Close()
+			os.Remove(tempName)
+			http.Error(w, "Bad path", http.StatusForbidden)
+			return
+		}
+
+		copyErr := func() error {
+			defer part.Close()
+			defer tempFile.Close()
+			_, err = io.Copy(tempFile, part)
+			return err
+		}()
+		if copyErr != nil {
+			os.Remove(tempName)
+			if errors.Is(copyErr, http.ErrBodyReadAfterClose) {
+				http.Error(w, "Upload interrupted", http.StatusRequestTimeout)
+				return
+			}
+			var maxBytesErr *http.MaxBytesError
+			if errors.As(copyErr, &maxBytesErr) {
+				respondUploadTooLarge()
+				return
+			}
+			http.Error(w, "Failed to save upload", http.StatusInternalServerError)
+			return
+		}
+
+		if err := os.Rename(tempName, targetPath); err != nil {
+			os.Remove(tempName)
+			http.Error(w, "Failed to finalize upload", http.StatusInternalServerError)
+			return
+		}
+
+		uploaded = true
+		break
+	}
+
+	if !uploaded {
+		http.Error(w, "Missing file", http.StatusBadRequest)
 		return
 	}
 
-	targetFile, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer targetFile.Close()
-
-	_, err = io.Copy(targetFile, file)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	wantsJSON := r.Header.Get("X-Requested-With") == "XMLHttpRequest" || strings.Contains(r.Header.Get("Accept"), "application/json")
+	if wantsJSON {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]string{
+			"status": "ok",
+		})
 		return
 	}
 

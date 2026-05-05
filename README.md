@@ -80,6 +80,10 @@ Usage of ./upgopher:
   -q    quiet mode
   -read-timeout duration
         server read timeout (0 means unlimited)
+  -read-header-timeout duration
+        server read header timeout
+  -write-timeout duration
+        server write timeout (0 means unlimited)
   -readonly
         readonly mode (disable upload and delete operations)
   -ssl
@@ -134,6 +138,13 @@ This will start the server on the default port (9090) and store uploaded files i
 ```bash
 ./upgopher -read-timeout 30m
 ```
+
+**Recommended for large uploads:**
+```bash
+./upgopher -read-timeout 0 -write-timeout 0
+```
+
+Note: Cloudflare Quick Tunnels are intended for testing and can impose limits. For reliable large uploads, prefer a full Cloudflare Tunnel.
 
 
 ## Security

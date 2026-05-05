@@ -259,7 +259,7 @@ function uploadFile(file) {
 
     // Upload complete event
     xhr.addEventListener('load', function () {
-        if (xhr.status === 200) {
+        if (xhr.status === 200 || xhr.status === 201) {
             updateUploadProgress(uploadTotalSize, uploadTotalSize, 100);
             setTimeout(() => {
                 hideUploadProgress();
@@ -296,6 +296,7 @@ function uploadFile(file) {
     // Send the request - preserve current directory path
     const uploadUrl = '/' + window.location.search;
     xhr.open('POST', uploadUrl);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     xhr.send(formData);
 }
 
