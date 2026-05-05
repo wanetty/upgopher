@@ -1527,3 +1527,250 @@ td a:hover {
     word-break: break-all;
     tab-size: 4;
 }
+
+/* ── Directory Tree Panel ─────────────────────────────────────────────────── */
+
+.tree-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.45);
+    z-index: 1000;
+    animation: fadeIn 0.2s ease;
+}
+
+.tree-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 320px;
+    max-width: 90vw;
+    background: #ffffff;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.18);
+    display: flex;
+    flex-direction: column;
+    z-index: 1001;
+    animation: treePanelSlideIn 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    overflow: hidden;
+}
+
+@keyframes treePanelSlideIn {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(0); }
+}
+
+.tree-panel-header {
+    background: linear-gradient(135deg, #009879 0%, #00705a 100%);
+    padding: 16px 20px;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+
+.tree-panel-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tree-panel-close {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.85);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 16px;
+    line-height: 1;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.tree-panel-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.tree-panel-toolbar {
+    display: flex;
+    gap: 8px;
+    padding: 10px 16px;
+    border-bottom: 1px solid #e8e8e8;
+    background: #f8f8f8;
+    flex-shrink: 0;
+}
+
+.tree-panel-toolbar .btn {
+    font-size: 12px;
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.tree-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+    scrollbar-width: thin;
+    scrollbar-color: #ddd transparent;
+}
+
+.tree-container::-webkit-scrollbar {
+    width: 5px;
+}
+
+.tree-container::-webkit-scrollbar-thumb {
+    background: #ddd;
+    border-radius: 4px;
+}
+
+/* Root node */
+.tree-root > .tree-node-row {
+    font-weight: 600;
+}
+
+/* One folder entry */
+.tree-node {
+    user-select: none;
+}
+
+.tree-node-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 8px 5px 0;
+    cursor: default;
+    border-radius: 4px;
+    transition: background-color 0.15s;
+    position: relative;
+}
+
+.tree-node-row:hover {
+    background-color: rgba(0, 152, 121, 0.07);
+}
+
+.tree-node-row.tree-active {
+    background-color: rgba(0, 152, 121, 0.13);
+    border-left: 3px solid #009879;
+}
+
+/* Toggle arrow button */
+.tree-toggle {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 11px;
+    color: #999;
+    flex-shrink: 0;
+    border-radius: 3px;
+    transition: color 0.15s, background-color 0.15s, transform 0.2s;
+    padding: 0;
+}
+
+.tree-toggle:hover {
+    color: #009879;
+    background-color: rgba(0, 152, 121, 0.1);
+}
+
+.tree-toggle.open {
+    transform: rotate(90deg);
+}
+
+.tree-toggle-spacer {
+    width: 20px;
+    flex-shrink: 0;
+}
+
+/* Folder icon */
+.tree-icon {
+    color: #f0b429;
+    font-size: 13px;
+    flex-shrink: 0;
+    width: 16px;
+    text-align: center;
+}
+
+/* Folder name — navigates on click */
+.tree-label {
+    flex: 1;
+    font-size: 13px;
+    color: #333;
+    padding: 2px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.15s;
+}
+
+.tree-label:hover {
+    color: #009879;
+    text-decoration: underline;
+}
+
+.tree-node-row.tree-active .tree-label {
+    color: #009879;
+    font-weight: 600;
+}
+
+/* Nested children container */
+.tree-children {
+    display: none;
+    padding-left: 20px;
+    border-left: 1px dashed #e0e0e0;
+    margin-left: 18px;
+}
+
+.tree-children.expanded {
+    display: block;
+}
+
+/* Inline loading indicator */
+.tree-loading-inline {
+    padding: 6px 12px;
+    font-size: 12px;
+    color: #aaa;
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Full-panel initial loading state */
+.tree-loading {
+    padding: 24px;
+    text-align: center;
+    color: #aaa;
+    font-style: italic;
+    font-size: 14px;
+}
+
+.tree-empty {
+    padding: 24px;
+    text-align: center;
+    color: #bbb;
+    font-size: 13px;
+}
+
+@media (max-width: 480px) {
+    .tree-panel {
+        width: 100vw;
+        max-width: 100vw;
+    }
+}

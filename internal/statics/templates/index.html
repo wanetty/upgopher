@@ -123,6 +123,9 @@
                         <button id="downloadSelectedBtn" class="btn btn-download-selected" onclick="downloadSelected()">
                             <i class="fa fa-download"></i> Download Selected (0)
                         </button>
+                        <button id="treeBrowseBtn" class="btn btn-secondary" onclick="toggleTreePanel()">
+                            <i class="fa fa-sitemap"></i> Browse Folders
+                        </button>
                     </div>
                 </div>
             </div>
@@ -339,6 +342,27 @@
 
         <!-- Toast notifications -->
         <div id="toast-container" class="toast-container"></div>
+
+        <!-- Directory Tree Panel -->
+        <div id="treePanelOverlay" class="tree-overlay" style="display:none;" onclick="closeTreePanel()">
+            <div id="treePanel" class="tree-panel" onclick="event.stopPropagation()">
+                <div class="tree-panel-header">
+                    <h3><i class="fa fa-sitemap"></i> Directory Tree</h3>
+                    <button class="tree-panel-close" onclick="closeTreePanel()" title="Close"><i class="fa fa-times"></i></button>
+                </div>
+                <div class="tree-panel-toolbar">
+                    <button class="btn btn-secondary" onclick="expandAllTree()" title="Expand all folders">
+                        <i class="fa fa-expand"></i> Expand All
+                    </button>
+                    <button class="btn btn-secondary" onclick="collapseAllTree()" title="Collapse all folders">
+                        <i class="fa fa-compress"></i> Collapse
+                    </button>
+                </div>
+                <div id="treeContainer" class="tree-container">
+                    <div class="tree-loading">Loading directory tree...</div>
+                </div>
+            </div>
+        </div>
 
         <script>
             {{ .JavaScript }}

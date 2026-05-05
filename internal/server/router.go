@@ -39,6 +39,7 @@ func SetupRoutes(
 	registerRoute("/file-content", fileHandlers.FileContent(), user, pass)
 	registerRoute("/search-file", fileHandlers.Search(), user, pass)
 	registerRoute("/api/v1/breadcrumbs", fileHandlers.Breadcrumbs(), user, pass)
+	registerRoute("/api/v1/tree", fileHandlers.Tree(), user, pass)
 	registerRoute("/clipboard/tabs", clipboardHandler.ListTabs(), user, pass)
 	registerRoute("/clipboard/stream", clipboardHandler.ClipboardStream(), user, pass)
 	registerRoute("/clipboard", clipboardHandler.Handle(), user, pass)
