@@ -79,17 +79,23 @@
 
                 {{ if not .ReadOnlyMode }}
                 <div id="drop_zone" ondrop="dropHandler(event);" ondragover="dragOverHandler(event);">
-                    <h1>Upload a File</h1>
-                    <p>Drag and drop files here or use the form below</p>
+                    <h1>Upload Files</h1>
+                    <p>Drag and drop files or folders here, or use the form below</p>
                 </div>
 
                 <!-- Upload + New Folder unified toolbar -->
                 <div class="upload-actions-row">
                     <form method="POST" class="upload-form" enctype="multipart/form-data" id="upload-form">
                         <div class="file-input-wrapper">
-                            <input type="file" name="file" id="file-upload">
+                            <input type="file" name="file" id="file-upload" multiple>
                             <label for="file-upload" class="file-input-label">
-                                <i class="fa fa-file-o"></i> Choose File
+                                <i class="fa fa-file-o"></i> Choose Files
+                            </label>
+                        </div>
+                        <div class="file-input-wrapper">
+                            <input type="file" name="file" id="folder-upload" webkitdirectory multiple>
+                            <label for="folder-upload" class="file-input-label">
+                                <i class="fa fa-folder-o"></i> Choose Folder
                             </label>
                         </div>
                         <span id="file-name" class="file-name"></span>

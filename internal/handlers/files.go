@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -793,7 +794,8 @@ func (fh *FileHandlers) handlePostRequest(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	var uploaded bool
+	var uploadedCount int
+	var createdDirCount int
 	for {
 		part, err := multipartReader.NextPart()
 		if err == io.EOF {
@@ -808,33 +810,103 @@ func (fh *FileHandlers) handlePostRequest(w http.ResponseWriter, r *http.Request
 			http.Error(w, "Invalid upload request", http.StatusBadRequest)
 			return
 		}
+		if part.FormName() == "empty-dir" {
+			_, cdParams, _ := mime.ParseMediaType(part.Header.Get("Content-Disposition"))
+			rawDirName := cdParams["filename"]
+			if rawDirName == "" {
+				rawDirName = cdParams["filename*"]
+			}
+			dirPath := strings.TrimRight(filepath.Clean(rawDirName), "/")
+			if dirPath != "" && !strings.HasPrefix(dirPath, "..") {
+				targetDir := filepath.Join(dir, dirPath)
+				if safe, err := security.IsSafePath(fh.Dir, targetDir); err == nil && safe {
+					if err := os.MkdirAll(targetDir, 0755); err != nil {
+						part.Close()
+						if !fh.Quiet {
+							log.Printf("[%s] Failed to create directory %s: %v\n", time.Now().Format("2006-01-02 15:04:05"), targetDir, err)
+						}
+						http.Error(w, "Failed to create directory", http.StatusInternalServerError)
+						return
+					}
+				}
+			}
+			part.Close()
+			createdDirCount++
+			continue
+		}
+
 		if part.FormName() != "file" {
 			part.Close()
 			continue
 		}
 
-		filename := filepath.Base(part.FileName())
-		if filename == "." || filename == "" {
+		// Parse Content-Disposition manually to get the raw filename
+		// (part.FileName() calls filepath.Base which strips subdirectory paths)
+		_, cdParams, _ := mime.ParseMediaType(part.Header.Get("Content-Disposition"))
+		rawFilename := cdParams["filename"]
+		if rawFilename == "" {
+			rawFilename = cdParams["filename*"]
+		}
+		relativePath := filepath.Clean(rawFilename)
+		if relativePath == "." || relativePath == "" {
 			part.Close()
 			http.Error(w, "Invalid upload request", http.StatusBadRequest)
 			return
 		}
-		targetPath := filepath.Join(dir, filename)
-		isSafe, err := security.IsSafePath(dir, targetPath)
+
+		// Reject paths with parent-directory traversal
+		// filepath.Clean collapses "foo/../../bar" to "../bar"
+		if strings.HasPrefix(relativePath, "..") {
+			part.Close()
+			http.Error(w, "Bad path", http.StatusForbidden)
+			return
+		}
+
+		filename := filepath.Base(relativePath)
+		subDir := filepath.Dir(relativePath)
+
+		// Determine the actual target directory, creating subdirs if needed
+		targetDir := dir
+		if subDir != "." {
+			targetDir = filepath.Join(dir, subDir)
+
+			// Validate the target directory path
+			safe, err := security.IsSafePath(fh.Dir, targetDir)
+			if err != nil || !safe {
+				part.Close()
+				if !fh.Quiet {
+					log.Printf("[%s] Unsafe path rejected: %s\n", time.Now().Format("2006-01-02 15:04:05"), targetDir)
+				}
+				http.Error(w, "Bad path", http.StatusForbidden)
+				return
+			}
+
+			if err := os.MkdirAll(targetDir, 0755); err != nil {
+				part.Close()
+				if !fh.Quiet {
+					log.Printf("[%s] Failed to create directory %s: %v\n", time.Now().Format("2006-01-02 15:04:05"), targetDir, err)
+				}
+				http.Error(w, "Failed to create directory", http.StatusInternalServerError)
+				return
+			}
+		}
+
+		targetPath := filepath.Join(targetDir, filename)
+		isSafe, err := security.IsSafePath(fh.Dir, targetPath)
 		if err != nil || !isSafe {
 			part.Close()
 			http.Error(w, "Bad path", http.StatusForbidden)
 			return
 		}
 
-		tempFile, err := os.CreateTemp(dir, ".upload-*")
+		tempFile, err := os.CreateTemp(targetDir, ".upload-*")
 		if err != nil {
 			part.Close()
 			http.Error(w, "Failed to prepare upload", http.StatusInternalServerError)
 			return
 		}
 		tempName := tempFile.Name()
-		isTempSafe, err := security.IsSafePath(dir, tempName)
+		isTempSafe, err := security.IsSafePath(fh.Dir, tempName)
 		if err != nil || !isTempSafe {
 			tempFile.Close()
 			os.Remove(tempName)
@@ -869,11 +941,10 @@ func (fh *FileHandlers) handlePostRequest(w http.ResponseWriter, r *http.Request
 			return
 		}
 
-		uploaded = true
-		break
+		uploadedCount++
 	}
 
-	if !uploaded {
+	if uploadedCount == 0 && createdDirCount == 0 {
 		http.Error(w, "Missing file", http.StatusBadRequest)
 		return
 	}
@@ -882,8 +953,10 @@ func (fh *FileHandlers) handlePostRequest(w http.ResponseWriter, r *http.Request
 	if wantsJSON {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]string{
+		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status": "ok",
+			"files":  uploadedCount,
+			"dirs":   createdDirCount,
 		})
 		return
 	}

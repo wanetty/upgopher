@@ -378,3 +378,92 @@ func TestFileUploadMaxSizeExceeded(t *testing.T) {
 		t.Fatalf("File should not be created when size limit is exceeded")
 	}
 }
+
+// TestFileUploadSubdirectory tests that uploading a file whose filename contains
+// a directory component creates the intermediate directories and writes the file.
+func TestFileUploadSubdirectory(t *testing.T) {
+	tempDir := t.TempDir()
+
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, 0, &showHiddenFiles, &customPaths, &customPathsMutex)
+	handler := fh.List()
+
+	fileContent := []byte("nested file content")
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	part, err := writer.CreateFormFile("file", "subdir/nested.txt")
+	if err != nil {
+		t.Fatalf("Failed to create form file: %v", err)
+	}
+	if _, err := part.Write(fileContent); err != nil {
+		t.Fatalf("Failed to write file content: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Failed to close writer: %v", err)
+	}
+
+	req := httptest.NewRequest("POST", "/", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	w := httptest.NewRecorder()
+
+	handler(w, req)
+
+	if w.Code != http.StatusSeeOther {
+		t.Errorf("Expected status 303 SeeOther, got %d", w.Code)
+	}
+
+	uploadedPath := filepath.Join(tempDir, "subdir", "nested.txt")
+	if _, err := os.Stat(uploadedPath); os.IsNotExist(err) {
+		t.Error("File was not created in subdirectory")
+	}
+
+	content, err := os.ReadFile(uploadedPath)
+	if err != nil {
+		t.Fatalf("Failed to read uploaded file: %v", err)
+	}
+	if !bytes.Equal(content, fileContent) {
+		t.Errorf("Uploaded file content mismatch. Got %s, want %s", content, fileContent)
+	}
+}
+
+// TestFileUploadEmptyDirectory tests that sending an empty-dir multipart part
+// creates the target directory on the server.
+func TestFileUploadEmptyDirectory(t *testing.T) {
+	tempDir := t.TempDir()
+
+	fh := handlers.NewFileHandlers(tempDir, true, false, false, 0, &showHiddenFiles, &customPaths, &customPathsMutex)
+	handler := fh.List()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	part, err := writer.CreateFormFile("empty-dir", "emptydir/")
+	if err != nil {
+		t.Fatalf("Failed to create form file: %v", err)
+	}
+	// Write zero bytes — this is an empty-directory marker
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Failed to close writer: %v", err)
+	}
+	_ = part
+
+	req := httptest.NewRequest("POST", "/", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	w := httptest.NewRecorder()
+
+	handler(w, req)
+
+	if w.Code != http.StatusSeeOther {
+		t.Errorf("Expected status 303 SeeOther, got %d", w.Code)
+	}
+
+	dirPath := filepath.Join(tempDir, "emptydir")
+	info, err := os.Stat(dirPath)
+	if os.IsNotExist(err) {
+		t.Error("Empty directory was not created")
+	}
+	if err == nil && !info.IsDir() {
+		t.Error("Path exists but is not a directory")
+	}
+}

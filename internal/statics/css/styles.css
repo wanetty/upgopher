@@ -490,6 +490,10 @@ td a:hover {
     background-color: #e3e3e3;
 }
 
+.file-input-label .fa-folder-o {
+    color: #009879;
+}
+
 .file-name {
     font-size: 13px;
     color: #666;
@@ -1455,6 +1459,10 @@ td a:hover {
 
 .toast.error {
     background-color: #e74c3c;
+}
+
+.toast.warning {
+    background-color: #f39c12;
 }
 
 .toast.hiding {

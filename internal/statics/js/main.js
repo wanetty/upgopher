@@ -250,35 +250,67 @@ function copyFromSharedClipboard() {
 // Other functions...
 function dropHandler(ev) {
     ev.preventDefault();
+
     if (ev.dataTransfer.items) {
-        [...ev.dataTransfer.items].forEach((item, i) => {
-            if (item.kind === "file") {
-                const file = item.getAsFile();
-                if (file) {
-                    input.files = ev.dataTransfer.files;
-                    // Update file name display
-                    const fileNameDisplay = document.getElementById('file-name');
-                    if (fileNameDisplay) {
-                        fileNameDisplay.textContent = file.name;
+        var promises = [];
+        var firefoxWarning = false;
+        for (var i = 0; i < ev.dataTransfer.items.length; i++) {
+            if (ev.dataTransfer.items[i].kind === 'file') {
+                var entry = ev.dataTransfer.items[i].webkitGetAsEntry();
+                if (entry) {
+                    promises.push(traverseEntry(entry, ''));
+                } else {
+                    // Fallback for browsers without webkitGetAsEntry
+                    firefoxWarning = true;
+                    var file = ev.dataTransfer.items[i].getAsFile();
+                    if (file) {
+                        promises.push(Promise.resolve([{
+                            file: file,
+                            relativePath: file.name
+                        }]));
                     }
-                    // Trigger upload
-                    uploadFile(file);
                 }
+            }
+        }
+        Promise.all(promises).then(function(results) {
+            var allItems = results.flat();
+            var fileItems = [];
+            var emptyDirs = [];
+            for (var k = 0; k < allItems.length; k++) {
+                if (allItems[k]._emptyDir) {
+                    emptyDirs.push(allItems[k].relativePath);
+                } else {
+                    fileItems.push(allItems[k]);
+                }
+            }
+            var fileNameDisplay = document.getElementById('file-name');
+            if (fileNameDisplay) {
+                fileNameDisplay.textContent = fileItems.length + ' file(s)';
+            }
+            if (fileItems.length > 0 || emptyDirs.length > 0) {
+                uploadFiles(fileItems, emptyDirs);
+            }
+            if (firefoxWarning) {
+                showToast('Folder structure not preserved. Use "Choose Folder" button instead.', 'warning');
             }
         });
     } else {
-        [...ev.dataTransfer.files].forEach((file, i) => {
-            input.files = ev.dataTransfer.files;
-            // Update file name display
-            const fileNameDisplay = document.getElementById('file-name');
-            if (fileNameDisplay && file) {
-                fileNameDisplay.textContent = file.name;
+        // Fallback for very old browsers: use dataTransfer.files
+        var files = ev.dataTransfer.files;
+        if (files && files.length > 0) {
+            var fileItems = [];
+            for (var j = 0; j < files.length; j++) {
+                fileItems.push({
+                    file: files[j],
+                    relativePath: files[j].name
+                });
             }
-            // Trigger upload
-            if (file) {
-                uploadFile(file);
+            var fileNameDisplay = document.getElementById('file-name');
+            if (fileNameDisplay) {
+                fileNameDisplay.textContent = fileItems.length + ' file(s)';
             }
-        });
+            uploadFiles(fileItems, []);
+        }
     }
 }
 
@@ -286,65 +318,122 @@ function dragOverHandler(ev) {
     ev.preventDefault();
 }
 
-// Function to handle file upload (used by both form submit and drag & drop)
+// Recursively traverse a FileSystemEntry (file or directory) and collect
+// all files with their relative paths. Uses entry.fullPath as the canonical
+// path source (supported in Chrome, Edge, Safari), falling back to manual
+// construction via the path parameter.
+function traverseEntry(entry, path) {
+    return new Promise(function(resolve) {
+        if (entry.isFile) {
+            entry.file(function(file) {
+                var relPath = (entry.fullPath && entry.fullPath.length > 1)
+                    ? entry.fullPath.slice(1)
+                    : (path + file.name);
+                resolve([{ file: file, relativePath: relPath }]);
+            }, function() {
+                resolve([]);
+            });
+        } else if (entry.isDirectory) {
+            var reader = entry.createReader();
+            var allEntries = [];
+            (function readBatch() {
+                reader.readEntries(function(entries) {
+                    if (entries.length === 0) {
+                        if (allEntries.length === 0) {
+                            var dirPath = (entry.fullPath && entry.fullPath.length > 1)
+                                ? entry.fullPath.slice(1) + '/'
+                                : path + entry.name + '/';
+                            resolve([{ _emptyDir: true, relativePath: dirPath }]);
+                        } else {
+                            resolve(Promise.all(
+                                allEntries.map(function(e) {
+                                    return traverseEntry(e, path + entry.name + '/');
+                                })
+                            ).then(function(results) {
+                                return results.flat();
+                            }));
+                        }
+                    } else {
+                        allEntries.push.apply(allEntries, entries);
+                        readBatch();
+                    }
+                }, function() {
+                    resolve([]);
+                });
+            })();
+        } else {
+            resolve([]);
+        }
+    });
+}
+
+// Single-file upload (kept for backward compatibility, delegates to batch)
 function uploadFile(file) {
-    uploadTotalSize = file.size;
+    uploadFiles([{ file: file, relativePath: file.name }], []);
+}
+
+// Batch upload: sends all files in a single multipart request.
+function uploadFiles(fileItems, emptyDirs) {
+    if (!emptyDirs) emptyDirs = [];
+    if ((!fileItems || fileItems.length === 0) && emptyDirs.length === 0) return;
+
+    // Calculate total size for progress tracking
+    uploadTotalSize = 0;
+    for (var i = 0; i < fileItems.length; i++) {
+        uploadTotalSize += fileItems[i].file.size;
+    }
     uploadStartTime = Date.now();
 
-    const formData = new FormData();
-    formData.append('file', file);
+    var formData = new FormData();
+    for (var j = 0; j < fileItems.length; j++) {
+        var item = fileItems[j];
+        formData.append('file', item.file, item.relativePath);
+    }
+    for (var d = 0; d < emptyDirs.length; d++) {
+        formData.append('empty-dir', new Blob([]), emptyDirs[d]);
+    }
 
     showUploadProgress();
 
-    // Create XMLHttpRequest for progress tracking
-    const xhr = new XMLHttpRequest();
+    var xhr = new XMLHttpRequest();
 
-    // Upload progress event
-    xhr.upload.addEventListener('progress', function (e) {
+    xhr.upload.addEventListener('progress', function(e) {
         if (e.lengthComputable) {
-            const percentage = (e.loaded / e.total) * 100;
+            var percentage = (e.loaded / e.total) * 100;
             updateUploadProgress(e.loaded, e.total, percentage);
         }
     });
 
-    // Upload complete event
-    xhr.addEventListener('load', function () {
+    xhr.addEventListener('load', function() {
         if (xhr.status === 200 || xhr.status === 201) {
             updateUploadProgress(uploadTotalSize, uploadTotalSize, 100);
-            setTimeout(() => {
+            setTimeout(function() {
                 hideUploadProgress();
-                // Clear file input
-                const fileInput = document.getElementById('file-upload');
-                if (fileInput) {
-                    fileInput.value = '';
-                }
-                const fileNameDisplay = document.getElementById('file-name');
-                if (fileNameDisplay) {
-                    fileNameDisplay.textContent = '';
-                }
-                // Reload page to show new file
+                var fileInput = document.getElementById('file-upload');
+                if (fileInput) fileInput.value = '';
+                var folderInput = document.getElementById('folder-upload');
+                if (folderInput) folderInput.value = '';
+                var fileNameDisplay = document.getElementById('file-name');
+                if (fileNameDisplay) fileNameDisplay.textContent = '';
                 window.location.reload();
             }, 1500);
         } else {
             hideUploadProgress();
-            alert('Error al subir el archivo: ' + xhr.statusText);
+            alert('Error al subir: ' + xhr.statusText);
         }
     });
 
-    // Upload error event
-    xhr.addEventListener('error', function () {
+    xhr.addEventListener('error', function() {
         hideUploadProgress();
-        alert('Error al subir el archivo');
+        alert('Error al subir');
     });
 
-    // Upload abort event
-    xhr.addEventListener('abort', function () {
+    xhr.addEventListener('abort', function() {
         hideUploadProgress();
-        alert('Subida de archivo cancelada');
+        alert('Subida cancelada');
     });
 
-    // Send the request - preserve current directory path
-    const uploadUrl = '/' + window.location.search;
+    var uploadUrl = '/' + window.location.search;
     xhr.open('POST', uploadUrl);
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     xhr.send(formData);
@@ -960,25 +1049,73 @@ function formatFileSize(bytes) {
 
 // Enhanced file upload with progress
 function setupFileUpload() {
-    const uploadForm = document.getElementById('upload-form');
-    const fileInput = document.getElementById('file-upload');
+    var uploadForm = document.getElementById('upload-form');
+    var fileInput = document.getElementById('file-upload');
+    var folderInput = document.getElementById('folder-upload');
+    var fileNameDisplay = document.getElementById('file-name');
 
     if (!uploadForm || !fileInput) {
         console.error('Upload form or file input not found');
         return;
     }
 
-    uploadForm.addEventListener('submit', function (e) {
+    // Show selected file count when file picker changes
+    fileInput.addEventListener('change', function() {
+        if (fileNameDisplay) {
+            var count = fileInput.files.length;
+            if (count === 0) {
+                fileNameDisplay.textContent = '';
+            } else if (count === 1) {
+                fileNameDisplay.textContent = fileInput.files[0].name;
+            } else {
+                fileNameDisplay.textContent = count + ' files selected';
+            }
+        }
+    });
+
+    if (folderInput) {
+        folderInput.addEventListener('change', function() {
+            if (fileNameDisplay && folderInput.files.length > 0) {
+                var firstPath = folderInput.files[0].webkitRelativePath;
+                var folderName = firstPath.split('/')[0];
+                fileNameDisplay.textContent = folderName + ' (' + folderInput.files.length + ' files)';
+            }
+        });
+    }
+
+    uploadForm.addEventListener('submit', function(e) {
         e.preventDefault();
 
-        const files = fileInput.files;
-        if (!files || files.length === 0) {
-            alert('Por favor selecciona un archivo');
+        var fileItems = [];
+
+        // Check file input (multi-file or single)
+        if (fileInput.files && fileInput.files.length > 0) {
+            for (var i = 0; i < fileInput.files.length; i++) {
+                var f = fileInput.files[i];
+                fileItems.push({
+                    file: f,
+                    relativePath: f.webkitRelativePath || f.name
+                });
+            }
+        }
+
+        // Check folder input (if no files were chosen from file input)
+        if (fileItems.length === 0 && folderInput && folderInput.files && folderInput.files.length > 0) {
+            for (var j = 0; j < folderInput.files.length; j++) {
+                var ff = folderInput.files[j];
+                fileItems.push({
+                    file: ff,
+                    relativePath: ff.webkitRelativePath || ff.name
+                });
+            }
+        }
+
+        if (fileItems.length === 0) {
+            alert('Por favor selecciona un archivo o carpeta');
             return;
         }
 
-        const file = files[0];
-        uploadFile(file);
+        uploadFiles(fileItems, []);
     });
 }
 

@@ -19,11 +19,14 @@ Compact, repo-specific notes for OpenCode sessions.
 - Security: `internal/security/` (path safety, auth, rate limit).
 - Embedded assets: `static/` + `//go:embed`.
 
-## Build/test commands (Makefile)
-- `make build` (builds `./upgopher` with `-ldflags="-s -w"`).
-- `make run`, `make run-ssl`, `make run-auth`.
+## Build/test/dev commands (Makefile)
+- `make build` — compila `./upgopher` con `-ldflags="-s -w"`.
+- `make run`, `make run-auth` (basic auth), `make run-ssl` (HTTPS auto-firmado).
 - `make test`, `make test-short`, `make test-race`, `make test-coverage`.
-- `make lint` runs `go vet`.
+- `make lint` — `go vet`.
+- `make clean` — elimina binarios y `coverage.out`.
+- `make dev` — `test-race` + `lint` (check rápido pre-commit).
+- `make ci` — `test-race` + `lint` + `build` (pipeline completo).
 
 ## State & concurrency
 - Shared maps live in `upgopher.go` (e.g., `customPaths`); lock with `sync.RWMutex`, copy then iterate.
