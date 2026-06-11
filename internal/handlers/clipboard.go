@@ -23,14 +23,25 @@ var tabNameRegex = regexp.MustCompile(`^[a-zA-Z0-9 _-]{1,50}$`)
 
 const maxClipboardImageSize = 16 << 20
 
+// ImageEntry holds metadata for a single uploaded screenshot
+type ImageEntry struct {
+	ID          string    `json:"id"`
+	Size        int       `json:"size"`
+	ContentType string    `json:"contentType"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+	Data        []byte    `json:"-"`
+}
+
+type screenshotStore struct {
+	images []ImageEntry
+	mu     sync.RWMutex
+}
+
 // ClipboardEntry holds the content and metadata for a single clipboard tab.
 type ClipboardEntry struct {
-	Content          string
-	UpdatedAt        time.Time
-	ImageData        []byte
-	ImageContentType string
-	ImageUpdatedAt   time.Time
-	TokenHash        string // SHA-256 hex of the token; empty = no protection
+	Content   string
+	UpdatedAt time.Time
+	TokenHash string // SHA-256 hex of the token; empty = no protection
 }
 
 // Protected reports whether this tab requires a token to access.
@@ -145,29 +156,28 @@ func checkTabToken(entry *ClipboardEntry, r *http.Request) bool {
 
 // ClipboardHandler manages shared clipboard HTTP endpoints.
 type ClipboardHandler struct {
-	Quiet  bool
-	store  *clipboardStore
-	broker *clipboardBroker
+	Quiet    bool
+	store    *clipboardStore
+	broker   *clipboardBroker
+	imgStore *screenshotStore
 }
 
 // NewClipboardHandler creates a new ClipboardHandler with its own internal store.
 func NewClipboardHandler(quiet bool, maxTabs int) *ClipboardHandler {
 	return &ClipboardHandler{
-		Quiet:  quiet,
-		store:  newClipboardStore(maxTabs),
-		broker: newClipboardBroker(),
+		Quiet:    quiet,
+		store:    newClipboardStore(maxTabs),
+		broker:   newClipboardBroker(),
+		imgStore: &screenshotStore{},
 	}
 }
 
 // tabInfo is the JSON response item for /clipboard/tabs.
 type tabInfo struct {
-	Name             string    `json:"name"`
-	Size             int       `json:"size"`
-	UpdatedAt        time.Time `json:"updatedAt"`
-	Protected        bool      `json:"protected"`
-	ImageSize        int       `json:"imageSize"`
-	ImageContentType string    `json:"imageContentType,omitempty"`
-	ImageUpdatedAt   time.Time `json:"imageUpdatedAt,omitempty"`
+	Name      string    `json:"name"`
+	Size      int       `json:"size"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	Protected bool      `json:"protected"`
 }
 
 // ListTabs handles GET /clipboard/tabs — returns JSON array of tab metadata.
@@ -190,13 +200,10 @@ func (ch *ClipboardHandler) ListTabs() http.HandlerFunc {
 		list := make([]tabInfo, 0, len(ch.store.tabs))
 		for name, entry := range ch.store.tabs {
 			list = append(list, tabInfo{
-				Name:             name,
-				Size:             len(entry.Content),
-				UpdatedAt:        entry.UpdatedAt,
-				Protected:        entry.Protected(),
-				ImageSize:        len(entry.ImageData),
-				ImageContentType: entry.ImageContentType,
-				ImageUpdatedAt:   entry.ImageUpdatedAt,
+				Name:      name,
+				Size:      len(entry.Content),
+				UpdatedAt: entry.UpdatedAt,
+				Protected: entry.Protected(),
 			})
 		}
 		ch.store.mu.RUnlock()
@@ -206,8 +213,8 @@ func (ch *ClipboardHandler) ListTabs() http.HandlerFunc {
 	}
 }
 
-// ClipboardImage handles GET/POST/DELETE on /clipboard/image with optional ?tab=<name>.
-func (ch *ClipboardHandler) ClipboardImage() http.HandlerFunc {
+// ListScreenshots handles GET /api/v1/screenshots
+func (ch *ClipboardHandler) ListScreenshots() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !ch.Quiet {
 			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
@@ -217,22 +224,182 @@ func (ch *ClipboardHandler) ClipboardImage() http.HandlerFunc {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-
-		tabName := r.URL.Query().Get("tab")
-		if tabName == "" {
-			tabName = "default"
-		}
-
-		switch r.Method {
-		case http.MethodGet:
-			ch.handleImageGet(w, r, tabName)
-		case http.MethodPost:
-			ch.handleImagePost(w, r, tabName)
-		case http.MethodDelete:
-			ch.handleImageDelete(w, r, tabName)
-		default:
+		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
 		}
+
+		ch.imgStore.mu.RLock()
+		list := append([]ImageEntry(nil), ch.imgStore.images...)
+		ch.imgStore.mu.RUnlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(list)
+	}
+}
+
+// UploadScreenshot handles POST /api/v1/screenshots
+func (ch *ClipboardHandler) UploadScreenshot() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !ch.Quiet {
+			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
+		}
+		setClipboardCORSHeaders(w)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		clientIP := clipboardExtractIP(r)
+		if !security.CheckRateLimit(clientIP) {
+			http.Error(w, "Rate limit exceeded. Maximum 20 requests per minute.", http.StatusTooManyRequests)
+			return
+		}
+
+		r.Body = http.MaxBytesReader(w, r.Body, maxClipboardImageSize)
+		defer r.Body.Close()
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Error reading data", http.StatusBadRequest)
+			return
+		}
+		contentType := normalizeClipboardImageContentType(r.Header.Get("Content-Type"), body)
+		if len(body) == 0 || contentType == "" {
+			http.Error(w, "Unsupported image type", http.StatusUnsupportedMediaType)
+			return
+		}
+
+		plain, _, genErr := generateToken()
+		if genErr != nil {
+			http.Error(w, "Failed to generate ID", http.StatusInternalServerError)
+			return
+		}
+		id := plain[:16]
+
+		ch.imgStore.mu.Lock()
+		if len(ch.imgStore.images) >= 50 {
+			ch.imgStore.images = ch.imgStore.images[1:]
+		}
+		entry := ImageEntry{
+			ID:          id,
+			Size:        len(body),
+			ContentType: contentType,
+			UpdatedAt:   time.Now(),
+			Data:        body,
+		}
+		ch.imgStore.images = append(ch.imgStore.images, entry)
+		ch.imgStore.mu.Unlock()
+
+		ch.broker.Broadcast("screenshots-global")
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(entry)
+	}
+}
+
+// GetScreenshot handles GET /api/v1/screenshots/image?id=...
+func (ch *ClipboardHandler) GetScreenshot() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !ch.Quiet {
+			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
+		}
+		setClipboardCORSHeaders(w)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		id := r.URL.Query().Get("id")
+		if id == "" {
+			http.Error(w, "Missing id parameter", http.StatusBadRequest)
+			return
+		}
+
+		ch.imgStore.mu.RLock()
+		var found *ImageEntry
+		for i := range ch.imgStore.images {
+			if ch.imgStore.images[i].ID == id {
+				found = &ch.imgStore.images[i]
+				break
+			}
+		}
+		var data []byte
+		var contentType string
+		if found != nil {
+			data = append([]byte(nil), found.Data...)
+			contentType = found.ContentType
+		}
+		ch.imgStore.mu.RUnlock()
+
+		if found == nil {
+			http.Error(w, "Image not found", http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", contentType)
+		w.Header().Set("Cache-Control", "no-store")
+		w.Write(data)
+	}
+}
+
+// DeleteScreenshot handles DELETE /api/v1/screenshots/image?id=...
+func (ch *ClipboardHandler) DeleteScreenshot() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !ch.Quiet {
+			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
+		}
+		setClipboardCORSHeaders(w)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if r.Method != http.MethodDelete {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		clientIP := clipboardExtractIP(r)
+		if !security.CheckRateLimit(clientIP) {
+			http.Error(w, "Rate limit exceeded. Maximum 20 requests per minute.", http.StatusTooManyRequests)
+			return
+		}
+
+		id := r.URL.Query().Get("id")
+		if id == "" {
+			http.Error(w, "Missing id parameter", http.StatusBadRequest)
+			return
+		}
+
+		ch.imgStore.mu.Lock()
+		idx := -1
+		for i := range ch.imgStore.images {
+			if ch.imgStore.images[i].ID == id {
+				idx = i
+				break
+			}
+		}
+		if idx != -1 {
+			ch.imgStore.images = append(ch.imgStore.images[:idx], ch.imgStore.images[idx+1:]...)
+		}
+		ch.imgStore.mu.Unlock()
+
+		if idx == -1 {
+			http.Error(w, "Image not found", http.StatusNotFound)
+			return
+		}
+
+		ch.broker.Broadcast("screenshots-global")
+		w.WriteHeader(http.StatusOK)
 	}
 }
 
@@ -433,153 +600,87 @@ func (ch *ClipboardHandler) handleDelete(w http.ResponseWriter, r *http.Request,
 	}
 }
 
-func (ch *ClipboardHandler) handleImageGet(w http.ResponseWriter, r *http.Request, tabName string) {
-	ch.store.mu.RLock()
-	entry, ok := ch.store.tabs[tabName]
-	var imageData []byte
-	var contentType, hash string
-	if ok {
-		imageData = append([]byte(nil), entry.ImageData...)
-		contentType = entry.ImageContentType
-		hash = entry.TokenHash
+// Screenshots handles GET/POST on /api/v1/screenshots
+func (ch *ClipboardHandler) Screenshots() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			ch.ListScreenshots()(w, r)
+		} else if r.Method == http.MethodPost {
+			ch.UploadScreenshot()(w, r)
+		} else if r.Method == http.MethodOptions {
+			setClipboardCORSHeaders(w)
+			w.WriteHeader(http.StatusOK)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
 	}
-	ch.store.mu.RUnlock()
-
-	if !ok {
-		http.Error(w, "Tab not found", http.StatusNotFound)
-		return
-	}
-
-	snap := &ClipboardEntry{TokenHash: hash}
-	if !checkTabToken(snap, r) {
-		w.Header().Set("WWW-Authenticate", `TabToken realm="Tab "`+tabName+`"`)
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-	if len(imageData) == 0 {
-		http.Error(w, "Image not found", http.StatusNotFound)
-		return
-	}
-
-	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Cache-Control", "no-store")
-	w.Write(imageData)
 }
 
-func (ch *ClipboardHandler) handleImagePost(w http.ResponseWriter, r *http.Request, tabName string) {
-	if !tabNameRegex.MatchString(tabName) {
-		http.Error(w, "Invalid tab name", http.StatusBadRequest)
-		return
+// ScreenshotImage handles GET/DELETE on /api/v1/screenshots/image
+func (ch *ClipboardHandler) ScreenshotImage() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			ch.GetScreenshot()(w, r)
+		} else if r.Method == http.MethodDelete {
+			ch.DeleteScreenshot()(w, r)
+		} else if r.Method == http.MethodOptions {
+			setClipboardCORSHeaders(w)
+			w.WriteHeader(http.StatusOK)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
 	}
+}
 
-	clientIP := clipboardExtractIP(r)
-	if !security.CheckRateLimit(clientIP) {
-		http.Error(w, "Rate limit exceeded. Maximum 20 requests per minute.", http.StatusTooManyRequests)
-		return
-	}
-
-	r.Body = http.MaxBytesReader(w, r.Body, maxClipboardImageSize)
-	defer r.Body.Close()
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Error reading data", http.StatusBadRequest)
-		return
-	}
-	contentType := normalizeClipboardImageContentType(r.Header.Get("Content-Type"), body)
-	if len(body) == 0 || contentType == "" {
-		http.Error(w, "Unsupported image type", http.StatusUnsupportedMediaType)
-		return
-	}
-
-	wantsToken := r.Header.Get("X-Tab-Token-Create") == "1"
-	customToken := r.Header.Get("X-Tab-Token-Value")
-
-	ch.store.mu.Lock()
-	existing, exists := ch.store.tabs[tabName]
-	if !exists {
-		if len(ch.store.tabs) >= ch.store.maxTabs {
-			ch.store.mu.Unlock()
-			http.Error(w, "Maximum number of tabs reached", http.StatusForbidden)
+// ServeScreenshotDirect handles GET /screenshot/<ID>
+func (ch *ClipboardHandler) ServeScreenshotDirect() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !ch.Quiet {
+			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
+		}
+		setClipboardCORSHeaders(w)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
 			return
 		}
-		now := time.Now()
-		entry := &ClipboardEntry{
-			UpdatedAt:        now,
-			ImageData:        append([]byte(nil), body...),
-			ImageContentType: contentType,
-			ImageUpdatedAt:   now,
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
 		}
-		if wantsToken {
-			if customToken != "" {
-				if len(customToken) < 6 {
-					ch.store.mu.Unlock()
-					http.Error(w, "Custom token must be at least 6 characters", http.StatusBadRequest)
-					return
-				}
-				entry.TokenHash = tokenHash(customToken)
-			} else {
-				plain, hash, genErr := generateToken()
-				if genErr != nil {
-					ch.store.mu.Unlock()
-					http.Error(w, "Failed to generate token", http.StatusInternalServerError)
-					return
-				}
-				entry.TokenHash = hash
-				w.Header().Set("X-Generated-Token", plain)
+
+		id := r.URL.Path
+		if id == "" {
+			http.Error(w, "Missing image ID", http.StatusBadRequest)
+			return
+		}
+
+		ch.imgStore.mu.RLock()
+		var found *ImageEntry
+		for i := range ch.imgStore.images {
+			if ch.imgStore.images[i].ID == id {
+				found = &ch.imgStore.images[i]
+				break
 			}
 		}
-		ch.store.tabs[tabName] = entry
-		ch.store.mu.Unlock()
-		w.WriteHeader(http.StatusCreated)
-		ch.broker.Broadcast(tabName)
-		return
-	}
+		var data []byte
+		var contentType string
+		if found != nil {
+			data = append([]byte(nil), found.Data...)
+			contentType = found.ContentType
+		}
+		ch.imgStore.mu.RUnlock()
 
-	if !checkTabToken(existing, r) {
-		ch.store.mu.Unlock()
-		w.Header().Set("WWW-Authenticate", `TabToken realm="Tab "`+tabName+`"`)
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-	existing.ImageData = append(existing.ImageData[:0], body...)
-	existing.ImageContentType = contentType
-	existing.ImageUpdatedAt = time.Now()
-	ch.store.mu.Unlock()
-
-	ch.broker.Broadcast(tabName)
-	w.WriteHeader(http.StatusOK)
-}
-
-func (ch *ClipboardHandler) handleImageDelete(w http.ResponseWriter, r *http.Request, tabName string) {
-	clientIP := clipboardExtractIP(r)
-	if !security.CheckRateLimit(clientIP) {
-		http.Error(w, "Rate limit exceeded. Maximum 20 requests per minute.", http.StatusTooManyRequests)
-		return
-	}
-
-	ch.store.mu.Lock()
-	entry, ok := ch.store.tabs[tabName]
-	if ok {
-		if !checkTabToken(entry, r) {
-			ch.store.mu.Unlock()
-			w.Header().Set("WWW-Authenticate", `TabToken realm="Tab "`+tabName+`"`)
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		if found == nil {
+			http.Error(w, "Image not found", http.StatusNotFound)
 			return
 		}
-		entry.ImageData = nil
-		entry.ImageContentType = ""
-		entry.ImageUpdatedAt = time.Time{}
-	}
-	ch.store.mu.Unlock()
 
-	if !ok {
-		http.Error(w, "Tab not found", http.StatusNotFound)
-		return
+		w.Header().Set("Content-Type", contentType)
+		w.Header().Set("Cache-Control", "no-store")
+		w.Write(data)
 	}
-	ch.broker.Broadcast(tabName)
-	w.WriteHeader(http.StatusOK)
 }
+
 
 // ClipboardStream handles GET /clipboard/stream?tab=<name> for Server-Sent Events.
 // Each connected client receives a "change" event whenever the tab content is updated.
