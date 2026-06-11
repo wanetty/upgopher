@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,91 @@ import (
 
 func newTestClipboardHandler() *ClipboardHandler {
 	return NewClipboardHandler(true, 5)
+}
+
+func TestClipboardImagePostAndGet(t *testing.T) {
+	h := newTestClipboardHandler()
+	handle := h.ClipboardImage()
+	image := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0, 0, 0, 0, 'I', 'H', 'D', 'R'}
+
+	req := httptest.NewRequest(http.MethodPost, "/clipboard/image", bytes.NewReader(image))
+	req.RemoteAddr = "10.250.0.1:12001"
+	req.Header.Set("Content-Type", "image/png")
+	w := httptest.NewRecorder()
+	handle(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("POST expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	req2 := httptest.NewRequest(http.MethodGet, "/clipboard/image", nil)
+	w2 := httptest.NewRecorder()
+	handle(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("GET expected 200, got %d: %s", w2.Code, w2.Body.String())
+	}
+	if got := w2.Header().Get("Content-Type"); got != "image/png" {
+		t.Fatalf("Content-Type = %q, want image/png", got)
+	}
+	if !bytes.Equal(w2.Body.Bytes(), image) {
+		t.Fatal("image body mismatch")
+	}
+}
+
+func TestClipboardImageRejectsNonImage(t *testing.T) {
+	h := newTestClipboardHandler()
+	req := httptest.NewRequest(http.MethodPost, "/clipboard/image", strings.NewReader("<script>alert(1)</script>"))
+	req.RemoteAddr = "10.250.0.2:12002"
+	req.Header.Set("Content-Type", "image/svg+xml")
+	w := httptest.NewRecorder()
+	h.ClipboardImage()(w, req)
+
+	if w.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("expected 415, got %d", w.Code)
+	}
+}
+
+func TestClipboardImageProtectedTabRequiresToken(t *testing.T) {
+	h := newTestClipboardHandler()
+	image := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0, 0, 0, 0, 'I', 'H', 'D', 'R'}
+
+	setupReq := httptest.NewRequest(http.MethodPost, "/clipboard?tab=image-vault", strings.NewReader("initial"))
+	setupReq.RemoteAddr = "10.250.0.3:12003"
+	setupReq.Header.Set("X-Tab-Token-Create", "1")
+	setupW := httptest.NewRecorder()
+	h.Handle()(setupW, setupReq)
+	if setupW.Code != http.StatusCreated {
+		t.Fatalf("setup expected 201, got %d: %s", setupW.Code, setupW.Body.String())
+	}
+	token := setupW.Header().Get("X-Generated-Token")
+	if token == "" {
+		t.Fatal("setup expected generated token")
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/clipboard/image?tab=image-vault", bytes.NewReader(image))
+	req.RemoteAddr = "10.250.0.4:12004"
+	req.Header.Set("Content-Type", "image/png")
+	w := httptest.NewRecorder()
+	h.ClipboardImage()(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("POST without token expected 401, got %d", w.Code)
+	}
+
+	req2 := httptest.NewRequest(http.MethodPost, "/clipboard/image?tab=image-vault", bytes.NewReader(image))
+	req2.RemoteAddr = "10.250.0.5:12005"
+	req2.Header.Set("Content-Type", "image/png")
+	req2.Header.Set("X-Tab-Token", token)
+	w2 := httptest.NewRecorder()
+	h.ClipboardImage()(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("POST with token expected 200, got %d: %s", w2.Code, w2.Body.String())
+	}
+
+	req3 := httptest.NewRequest(http.MethodGet, "/clipboard/image?tab=image-vault", nil)
+	w3 := httptest.NewRecorder()
+	h.ClipboardImage()(w3, req3)
+	if w3.Code != http.StatusUnauthorized {
+		t.Fatalf("GET without token expected 401, got %d", w3.Code)
+	}
 }
 
 // TestClipboardDefaultTabExists verifies "default" tab is ready on init.

@@ -200,6 +200,30 @@
                                 <i class="fa fa-save"></i> Save
                             </button>
                         </div>
+
+                        <div class="clipboard-image-panel">
+                            <div id="clipboard-image-drop" class="clipboard-image-drop" tabindex="0">
+                                <div id="clipboard-image-empty" class="clipboard-image-empty">
+                                    <i class="fa fa-picture-o"></i>
+                                    <span>Paste screenshot</span>
+                                </div>
+                                <img id="clipboard-image-preview" alt="Shared screenshot" style="display:none;">
+                            </div>
+                            <div class="clipboard-image-meta">
+                                <span id="clipboard-image-status">image: empty</span>
+                            </div>
+                            <div class="clipboard-actions">
+                                <button id="paste-image-from-clipboard" class="btn btn-secondary" onclick="pasteImageFromLocalClipboard()">
+                                    <i class="fa fa-picture-o"></i> Paste image
+                                </button>
+                                <button id="copy-image-from-clipboard" class="btn btn-secondary" onclick="copyImageFromSharedClipboard()">
+                                    <i class="fa fa-clipboard"></i> Copy image
+                                </button>
+                                <button id="clear-shared-image" class="btn btn-secondary" onclick="clearSharedClipboardImage()">
+                                    <i class="fa fa-trash"></i> Clear image
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

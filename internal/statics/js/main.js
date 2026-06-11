@@ -113,6 +113,8 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    initClipboardImagePanel();
+
     // New tab name: create on Enter, cancel on Escape
     var newTabInput = document.getElementById('new-tab-name');
     if (newTabInput) {
@@ -245,6 +247,230 @@ function copyFromSharedClipboard() {
                 showToast('Could not copy: ' + err.message, 'error');
             }
         });
+}
+
+// ── Shared clipboard image ───────────────────────────────────────────────────
+var _clipboardImageObjectUrl = null;
+
+function initClipboardImagePanel() {
+    var drop = document.getElementById('clipboard-image-drop');
+    if (!drop) return;
+
+    drop.addEventListener('click', function () { drop.focus(); });
+    drop.addEventListener('paste', handleClipboardImagePaste);
+    drop.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        drop.classList.add('drag-over');
+    });
+    drop.addEventListener('dragleave', function () {
+        drop.classList.remove('drag-over');
+    });
+    drop.addEventListener('drop', function (e) {
+        e.preventDefault();
+        drop.classList.remove('drag-over');
+        if (!e.dataTransfer || !e.dataTransfer.files) return;
+        for (var i = 0; i < e.dataTransfer.files.length; i++) {
+            var file = e.dataTransfer.files[i];
+            if (file && file.type && file.type.indexOf('image/') === 0) {
+                uploadSharedClipboardImage(file);
+                return;
+            }
+        }
+        showToast('No image found', 'error');
+    });
+}
+
+function clipboardTabHeaders(contentType) {
+    var headers = {};
+    if (contentType) headers['Content-Type'] = contentType;
+    var token = clipboardTokenCache[currentClipboardTab];
+    if (token) headers['X-Tab-Token'] = token;
+    return headers;
+}
+
+function handleClipboardImagePaste(event) {
+    if (!event.clipboardData || !event.clipboardData.items) return;
+    for (var i = 0; i < event.clipboardData.items.length; i++) {
+        var item = event.clipboardData.items[i];
+        if (item.kind === 'file' && item.type && item.type.indexOf('image/') === 0) {
+            event.preventDefault();
+            uploadSharedClipboardImage(item.getAsFile());
+            return;
+        }
+    }
+}
+
+function pasteImageFromLocalClipboard() {
+    if (!navigator.clipboard || !navigator.clipboard.read) {
+        showToast('Image paste needs HTTPS, localhost, or a compatible browser', 'error');
+        return;
+    }
+
+    navigator.clipboard.read()
+        .then(function (items) {
+            for (var i = 0; i < items.length; i++) {
+                var types = items[i].types || [];
+                for (var j = 0; j < types.length; j++) {
+                    if (types[j].indexOf('image/') === 0) {
+                        return items[i].getType(types[j]).then(uploadSharedClipboardImage);
+                    }
+                }
+            }
+            showToast('No image found', 'error');
+        })
+        .catch(function (err) { showToast('Could not read image: ' + err.message, 'error'); });
+}
+
+function uploadSharedClipboardImage(blob) {
+    if (!blob) {
+        showToast('No image found', 'error');
+        return;
+    }
+
+    fetch('/clipboard/image?tab=' + encodeURIComponent(currentClipboardTab), {
+        method: 'POST',
+        headers: clipboardTabHeaders(blob.type || 'application/octet-stream'),
+        body: blob
+    })
+        .then(function (response) {
+            if (response.status === 401) {
+                showTokenUnlockRow(currentClipboardTab, function () { uploadSharedClipboardImage(blob); });
+                return;
+            }
+            if (!response.ok) return response.text().then(function (t) { throw new Error(t.trim() || 'Error saving image'); });
+            setClipboardImagePreview(blob);
+            updateClipboardImageStatus(blob.size, blob.type);
+            loadClipboardTabs(false);
+            showToast('Image saved to "' + currentClipboardTab + '"');
+        })
+        .catch(function (err) { showToast(err.message, 'error'); });
+}
+
+function loadSharedClipboardImage(tabName) {
+    fetch('/clipboard/image?tab=' + encodeURIComponent(tabName), { headers: clipboardTabHeaders() })
+        .then(function (response) {
+            if (tabName !== currentClipboardTab) return null;
+            if (response.status === 401 || response.status === 404) {
+                clearClipboardImagePreview();
+                return null;
+            }
+            if (!response.ok) throw new Error('Error loading image');
+            return response.blob();
+        })
+        .then(function (blob) {
+            if (!blob || tabName !== currentClipboardTab) return;
+            setClipboardImagePreview(blob);
+            updateClipboardImageStatus(blob.size, blob.type);
+        })
+        .catch(function () { clearClipboardImagePreview(); });
+}
+
+function setClipboardImagePreview(blob) {
+    var img = document.getElementById('clipboard-image-preview');
+    var empty = document.getElementById('clipboard-image-empty');
+    if (!img || !empty) return;
+    if (_clipboardImageObjectUrl) URL.revokeObjectURL(_clipboardImageObjectUrl);
+    _clipboardImageObjectUrl = URL.createObjectURL(blob);
+    img.src = _clipboardImageObjectUrl;
+    img.style.display = 'block';
+    empty.style.display = 'none';
+}
+
+function clearClipboardImagePreview() {
+    var img = document.getElementById('clipboard-image-preview');
+    var empty = document.getElementById('clipboard-image-empty');
+    if (_clipboardImageObjectUrl) {
+        URL.revokeObjectURL(_clipboardImageObjectUrl);
+        _clipboardImageObjectUrl = null;
+    }
+    if (img) {
+        img.removeAttribute('src');
+        img.style.display = 'none';
+    }
+    if (empty) empty.style.display = 'flex';
+    updateClipboardImageStatus(0, '');
+}
+
+function updateClipboardImageStatus(size, contentType) {
+    var el = document.getElementById('clipboard-image-status');
+    if (!el) return;
+    if (!size) {
+        el.textContent = 'image: empty';
+        return;
+    }
+    el.textContent = 'image: ' + formatFileSize(size) + (contentType ? ' - ' + contentType : '');
+}
+
+function updateClipboardImageMeta(tab) {
+    if (!tab || !tab.imageSize) {
+        updateClipboardImageStatus(0, '');
+        return;
+    }
+    updateClipboardImageStatus(tab.imageSize, tab.imageContentType || '');
+}
+
+function copyImageFromSharedClipboard() {
+    var canWriteImage = navigator.clipboard && navigator.clipboard.write && typeof ClipboardItem !== 'undefined';
+    var copied = false;
+
+    fetch('/clipboard/image?tab=' + encodeURIComponent(currentClipboardTab), { headers: clipboardTabHeaders() })
+        .then(function (response) {
+            if (response.status === 401) {
+                showTokenUnlockRow(currentClipboardTab, copyImageFromSharedClipboard);
+                return null;
+            }
+            if (response.status === 404) {
+                showToast('No image to copy', 'error');
+                return null;
+            }
+            if (!response.ok) throw new Error('Error loading image');
+            return response.blob();
+        })
+        .then(function (blob) {
+            if (!blob) return;
+            if (!canWriteImage) {
+                openSharedClipboardImageFallback(blob);
+                return;
+            }
+            var item = new ClipboardItem((function () {
+                var data = {};
+                data[blob.type || 'image/png'] = blob;
+                return data;
+            })());
+            return navigator.clipboard.write([item]).then(function () { copied = true; });
+        })
+        .then(function () {
+            if (copied) showToast('Image copied to local clipboard');
+        })
+        .catch(function (err) { showToast('Could not copy image: ' + err.message, 'error'); });
+}
+
+function openSharedClipboardImageFallback(blob) {
+    var url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener');
+    var message = window.isSecureContext
+        ? 'Your browser cannot copy images automatically. Image opened in a new tab.'
+        : 'Image copy needs HTTPS or localhost. Image opened in a new tab.';
+    showToast(message, 'warning');
+    setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+}
+
+function clearSharedClipboardImage() {
+    fetch('/clipboard/image?tab=' + encodeURIComponent(currentClipboardTab), {
+        method: 'DELETE',
+        headers: clipboardTabHeaders()
+    })
+        .then(function (response) {
+            if (response.status === 401) {
+                showTokenUnlockRow(currentClipboardTab, clearSharedClipboardImage);
+                return;
+            }
+            if (!response.ok) return response.text().then(function (t) { throw new Error(t.trim() || 'Error clearing image'); });
+            clearClipboardImagePreview();
+            loadClipboardTabs(false);
+            showToast('Image cleared');
+        })
+        .catch(function (err) { showToast(err.message, 'error'); });
 }
 
 // Other functions...
@@ -1240,6 +1466,7 @@ function fetchClipboardContent(tabName) {
             if (content === null || content === undefined) return;
             document.getElementById('shared-clipboard-textarea').value = content;
             document.getElementById('clipboard-char-count').textContent = 'chars: ' + content.length;
+            loadSharedClipboardImage(tabName);
             // Refresh tab metadata to update updatedAt
             loadClipboardTabs(false);
         })
@@ -1269,7 +1496,10 @@ function loadClipboardTabs(selectCurrent) {
                 selectClipboardTab(exists ? currentClipboardTab : 'default');
             } else {
                 var entry = tabs.find(function (t) { return t.name === currentClipboardTab; });
-                if (entry) updateClipboardMeta(entry);
+                if (entry) {
+                    updateClipboardMeta(entry);
+                    updateClipboardImageMeta(entry);
+                }
                 updateForgetTokenBtn();
             }
         })
@@ -1341,6 +1571,7 @@ function selectClipboardTab(name) {
             if (r.status === 401) {
                 document.getElementById('shared-clipboard-textarea').value = '';
                 document.getElementById('clipboard-char-count').textContent = 'chars: 0';
+                clearClipboardImagePreview();
                 setClipboardEditable(false);
                 showTokenUnlockRow(name, function () { selectClipboardTab(name); });
                 return null;
@@ -1356,7 +1587,11 @@ function selectClipboardTab(name) {
             document.getElementById('shared-clipboard-textarea').value = content;
             document.getElementById('clipboard-char-count').textContent = 'chars: ' + content.length;
             var entry = clipboardTabsCache.find(function (t) { return t.name === name; });
-            if (entry) updateClipboardMeta(entry);
+            if (entry) {
+                updateClipboardMeta(entry);
+                updateClipboardImageMeta(entry);
+            }
+            loadSharedClipboardImage(name);
             updateForgetTokenBtn();
             // Connect SSE stream for real-time updates from other clients
             connectClipboardSSE(name);
@@ -1436,6 +1671,7 @@ function createClipboardTab() {
             }
             document.getElementById('shared-clipboard-textarea').value = '';
             document.getElementById('clipboard-char-count').textContent = 'chars: 0';
+            clearClipboardImagePreview();
             setClipboardEditable(true);
             loadClipboardTabs(false);
             // Connect SSE for the newly created tab immediately.

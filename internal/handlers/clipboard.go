@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,11 +21,16 @@ import (
 
 var tabNameRegex = regexp.MustCompile(`^[a-zA-Z0-9 _-]{1,50}$`)
 
+const maxClipboardImageSize = 16 << 20
+
 // ClipboardEntry holds the content and metadata for a single clipboard tab.
 type ClipboardEntry struct {
-	Content   string
-	UpdatedAt time.Time
-	TokenHash string // SHA-256 hex of the token; empty = no protection
+	Content          string
+	UpdatedAt        time.Time
+	ImageData        []byte
+	ImageContentType string
+	ImageUpdatedAt   time.Time
+	TokenHash        string // SHA-256 hex of the token; empty = no protection
 }
 
 // Protected reports whether this tab requires a token to access.
@@ -155,10 +161,13 @@ func NewClipboardHandler(quiet bool, maxTabs int) *ClipboardHandler {
 
 // tabInfo is the JSON response item for /clipboard/tabs.
 type tabInfo struct {
-	Name      string    `json:"name"`
-	Size      int       `json:"size"`
-	UpdatedAt time.Time `json:"updatedAt"`
-	Protected bool      `json:"protected"`
+	Name             string    `json:"name"`
+	Size             int       `json:"size"`
+	UpdatedAt        time.Time `json:"updatedAt"`
+	Protected        bool      `json:"protected"`
+	ImageSize        int       `json:"imageSize"`
+	ImageContentType string    `json:"imageContentType,omitempty"`
+	ImageUpdatedAt   time.Time `json:"imageUpdatedAt,omitempty"`
 }
 
 // ListTabs handles GET /clipboard/tabs — returns JSON array of tab metadata.
@@ -181,16 +190,49 @@ func (ch *ClipboardHandler) ListTabs() http.HandlerFunc {
 		list := make([]tabInfo, 0, len(ch.store.tabs))
 		for name, entry := range ch.store.tabs {
 			list = append(list, tabInfo{
-				Name:      name,
-				Size:      len(entry.Content),
-				UpdatedAt: entry.UpdatedAt,
-				Protected: entry.Protected(),
+				Name:             name,
+				Size:             len(entry.Content),
+				UpdatedAt:        entry.UpdatedAt,
+				Protected:        entry.Protected(),
+				ImageSize:        len(entry.ImageData),
+				ImageContentType: entry.ImageContentType,
+				ImageUpdatedAt:   entry.ImageUpdatedAt,
 			})
 		}
 		ch.store.mu.RUnlock()
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(list)
+	}
+}
+
+// ClipboardImage handles GET/POST/DELETE on /clipboard/image with optional ?tab=<name>.
+func (ch *ClipboardHandler) ClipboardImage() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !ch.Quiet {
+			log.Printf("[%s] [%s] %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.String(), r.RemoteAddr)
+		}
+		setClipboardCORSHeaders(w)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		tabName := r.URL.Query().Get("tab")
+		if tabName == "" {
+			tabName = "default"
+		}
+
+		switch r.Method {
+		case http.MethodGet:
+			ch.handleImageGet(w, r, tabName)
+		case http.MethodPost:
+			ch.handleImagePost(w, r, tabName)
+		case http.MethodDelete:
+			ch.handleImageDelete(w, r, tabName)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
 	}
 }
 
@@ -391,6 +433,154 @@ func (ch *ClipboardHandler) handleDelete(w http.ResponseWriter, r *http.Request,
 	}
 }
 
+func (ch *ClipboardHandler) handleImageGet(w http.ResponseWriter, r *http.Request, tabName string) {
+	ch.store.mu.RLock()
+	entry, ok := ch.store.tabs[tabName]
+	var imageData []byte
+	var contentType, hash string
+	if ok {
+		imageData = append([]byte(nil), entry.ImageData...)
+		contentType = entry.ImageContentType
+		hash = entry.TokenHash
+	}
+	ch.store.mu.RUnlock()
+
+	if !ok {
+		http.Error(w, "Tab not found", http.StatusNotFound)
+		return
+	}
+
+	snap := &ClipboardEntry{TokenHash: hash}
+	if !checkTabToken(snap, r) {
+		w.Header().Set("WWW-Authenticate", `TabToken realm="Tab "`+tabName+`"`)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if len(imageData) == 0 {
+		http.Error(w, "Image not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write(imageData)
+}
+
+func (ch *ClipboardHandler) handleImagePost(w http.ResponseWriter, r *http.Request, tabName string) {
+	if !tabNameRegex.MatchString(tabName) {
+		http.Error(w, "Invalid tab name", http.StatusBadRequest)
+		return
+	}
+
+	clientIP := clipboardExtractIP(r)
+	if !security.CheckRateLimit(clientIP) {
+		http.Error(w, "Rate limit exceeded. Maximum 20 requests per minute.", http.StatusTooManyRequests)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxClipboardImageSize)
+	defer r.Body.Close()
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Error reading data", http.StatusBadRequest)
+		return
+	}
+	contentType := normalizeClipboardImageContentType(r.Header.Get("Content-Type"), body)
+	if len(body) == 0 || contentType == "" {
+		http.Error(w, "Unsupported image type", http.StatusUnsupportedMediaType)
+		return
+	}
+
+	wantsToken := r.Header.Get("X-Tab-Token-Create") == "1"
+	customToken := r.Header.Get("X-Tab-Token-Value")
+
+	ch.store.mu.Lock()
+	existing, exists := ch.store.tabs[tabName]
+	if !exists {
+		if len(ch.store.tabs) >= ch.store.maxTabs {
+			ch.store.mu.Unlock()
+			http.Error(w, "Maximum number of tabs reached", http.StatusForbidden)
+			return
+		}
+		now := time.Now()
+		entry := &ClipboardEntry{
+			UpdatedAt:        now,
+			ImageData:        append([]byte(nil), body...),
+			ImageContentType: contentType,
+			ImageUpdatedAt:   now,
+		}
+		if wantsToken {
+			if customToken != "" {
+				if len(customToken) < 6 {
+					ch.store.mu.Unlock()
+					http.Error(w, "Custom token must be at least 6 characters", http.StatusBadRequest)
+					return
+				}
+				entry.TokenHash = tokenHash(customToken)
+			} else {
+				plain, hash, genErr := generateToken()
+				if genErr != nil {
+					ch.store.mu.Unlock()
+					http.Error(w, "Failed to generate token", http.StatusInternalServerError)
+					return
+				}
+				entry.TokenHash = hash
+				w.Header().Set("X-Generated-Token", plain)
+			}
+		}
+		ch.store.tabs[tabName] = entry
+		ch.store.mu.Unlock()
+		w.WriteHeader(http.StatusCreated)
+		ch.broker.Broadcast(tabName)
+		return
+	}
+
+	if !checkTabToken(existing, r) {
+		ch.store.mu.Unlock()
+		w.Header().Set("WWW-Authenticate", `TabToken realm="Tab "`+tabName+`"`)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	existing.ImageData = append(existing.ImageData[:0], body...)
+	existing.ImageContentType = contentType
+	existing.ImageUpdatedAt = time.Now()
+	ch.store.mu.Unlock()
+
+	ch.broker.Broadcast(tabName)
+	w.WriteHeader(http.StatusOK)
+}
+
+func (ch *ClipboardHandler) handleImageDelete(w http.ResponseWriter, r *http.Request, tabName string) {
+	clientIP := clipboardExtractIP(r)
+	if !security.CheckRateLimit(clientIP) {
+		http.Error(w, "Rate limit exceeded. Maximum 20 requests per minute.", http.StatusTooManyRequests)
+		return
+	}
+
+	ch.store.mu.Lock()
+	entry, ok := ch.store.tabs[tabName]
+	if ok {
+		if !checkTabToken(entry, r) {
+			ch.store.mu.Unlock()
+			w.Header().Set("WWW-Authenticate", `TabToken realm="Tab "`+tabName+`"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		entry.ImageData = nil
+		entry.ImageContentType = ""
+		entry.ImageUpdatedAt = time.Time{}
+	}
+	ch.store.mu.Unlock()
+
+	if !ok {
+		http.Error(w, "Tab not found", http.StatusNotFound)
+		return
+	}
+	ch.broker.Broadcast(tabName)
+	w.WriteHeader(http.StatusOK)
+}
+
 // ClipboardStream handles GET /clipboard/stream?tab=<name> for Server-Sent Events.
 // Each connected client receives a "change" event whenever the tab content is updated.
 func (ch *ClipboardHandler) ClipboardStream() http.HandlerFunc {
@@ -511,6 +701,35 @@ func setClipboardCORSHeaders(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Tab-Token, X-Tab-Token-Create, X-Tab-Token-Value")
+}
+
+func normalizeClipboardImageContentType(headerValue string, data []byte) string {
+	headerValue = strings.ToLower(strings.TrimSpace(strings.Split(headerValue, ";")[0]))
+	detected := strings.ToLower(http.DetectContentType(data))
+
+	for _, candidate := range []string{detected, headerValue} {
+		if isAllowedClipboardImageContentType(candidate, data) {
+			return candidate
+		}
+	}
+	return ""
+}
+
+func isAllowedClipboardImageContentType(contentType string, data []byte) bool {
+	switch contentType {
+	case "image/png":
+		return len(data) >= 8 &&
+			data[0] == 0x89 && data[1] == 'P' && data[2] == 'N' && data[3] == 'G' &&
+			data[4] == '\r' && data[5] == '\n' && data[6] == 0x1a && data[7] == '\n'
+	case "image/jpeg":
+		return len(data) >= 3 && data[0] == 0xff && data[1] == 0xd8 && data[2] == 0xff
+	case "image/gif":
+		return len(data) >= 6 && (string(data[0:6]) == "GIF87a" || string(data[0:6]) == "GIF89a")
+	case "image/webp":
+		return len(data) >= 12 && string(data[0:4]) == "RIFF" && string(data[8:12]) == "WEBP"
+	default:
+		return false
+	}
 }
 
 func clipboardExtractIP(r *http.Request) string {

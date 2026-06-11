@@ -42,6 +42,7 @@ func SetupRoutes(
 	registerRoute("/api/v1/tree", fileHandlers.Tree(), user, pass)
 	registerRoute("/clipboard/tabs", clipboardHandler.ListTabs(), user, pass)
 	registerRoute("/clipboard/stream", clipboardHandler.ClipboardStream(), user, pass)
+	registerRoute("/clipboard/image", clipboardHandler.ClipboardImage(), user, pass)
 	registerRoute("/clipboard", clipboardHandler.Handle(), user, pass)
 	registerRoute("/mkdir", fileHandlers.Mkdir(), user, pass)
 	registerRoute("/custom-path", customPathHandler.Handle(), user, pass)
