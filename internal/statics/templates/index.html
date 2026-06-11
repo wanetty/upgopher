@@ -24,6 +24,9 @@
                 <button class="tab-link" onclick="openTab(event, 'clipboard-tab')">
                     <i class="fa fa-clipboard"></i> Shared Clipboard
                 </button>
+                <button class="tab-link" onclick="openTab(event, 'images-tab')">
+                    <i class="fa fa-picture-o"></i> Shared Images
+                </button>
             </div>
 
             <!-- Files Tab Content -->
@@ -199,6 +202,70 @@
                             <button id="save-to-clipboard" class="btn" onclick="saveToSharedClipboard()">
                                 <i class="fa fa-save"></i> Save
                             </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Shared Images Tab Content -->
+            <div id="images-tab" class="tab-content">
+                <div id="shared-images-container" class="shared-images-container">
+                    <div class="clipboard-header">
+                        <i class="fa fa-picture-o"></i>
+                        <h2>Shared Images</h2>
+                    </div>
+                    
+                    <div class="images-content">
+                        <!-- FIFO limit notice -->
+                        <div class="fifo-notice">
+                            <i class="fa fa-info-circle"></i> Shared gallery stores the last 50 images. Older ones are automatically removed.
+                        </div>
+
+                        <!-- SSL warning banner -->
+                        <div id="ssl-warning-banner" class="ssl-warning-banner" style="display:none;">
+                            <div class="ssl-warning-content">
+                                <i class="fa fa-exclamation-triangle ssl-warning-icon"></i>
+                                <div>
+                                    <strong>Conexión HTTP (Sin SSL):</strong> Tu navegador bloquea la copia automática de imágenes al portapapeles local en conexiones no seguras. Aún puedes subir y ver imágenes. Para copiar, usa el botón <strong>View/Copy</strong> y haz click derecho -> <em>Copiar imagen</em> en la nueva pestaña.
+                                    <div class="ssl-guide-toggle-row">
+                                        <a href="javascript:void(0)" class="ssl-guide-link" onclick="toggleSslGuide()">¿Cómo habilitar la copia automática nativa en este navegador?</a>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Expandable config guide -->
+                            <div id="ssl-guide-panel" class="ssl-guide-panel" style="display:none;">
+                                <h4>Guía para habilitar la copia de imágenes en red local:</h4>
+                                <p>Los navegadores modernos (Chrome, Edge, Opera) permiten habilitar excepciones para servidores locales específicos de la siguiente manera:</p>
+                                <ol>
+                                    <li>Copia la siguiente URL de configuración y ábrela en una pestaña nueva:
+                                        <code class="selectable-code">chrome://flags/#unsafely-treat-insecure-origin-as-secure</code>
+                                    </li>
+                                    <li>Busca la opción <strong>"Insecure origins treated as secure"</strong>.</li>
+                                    <li>Pega la dirección de este servidor en el campo de texto:
+                                        <code class="selectable-code" id="ssl-server-origin-code">http://...</code>
+                                    </li>
+                                    <li>Cambia el estado de la opción a <strong>"Enabled"</strong>.</li>
+                                    <li>Reinicia el navegador (botón <em>Relaunch</em>) y la copia automática quedará desbloqueada en esta web.</li>
+                                </ol>
+                                <small>Nota: En Firefox, puedes configurar excepciones avanzadas a través de <code>about:config</code> cambiando el parámetro <code>dom.format.image.html.enabled</code> o utilizando túneles seguros.</small>
+                            </div>
+                        </div>
+
+                        <div class="image-upload-wrapper">
+                            <!-- Image paste and drop zone -->
+                            <div id="screenshot-drop-zone" class="screenshot-drop-zone" tabindex="0">
+                                <i class="fa fa-cloud-upload"></i>
+                                <span>Drag & drop images here or press <strong>Ctrl+V / Cmd+V</strong> to paste a screenshot</span>
+                                <input type="file" id="screenshot-file-input" accept="image/*" style="display:none;">
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="document.getElementById('screenshot-file-input').click()"><i class="fa fa-image"></i> Browse Image</button>
+                            </div>
+                        </div>
+
+                        <!-- Grid container for screenshots -->
+                        <div id="screenshots-grid" class="screenshots-grid">
+                            <!-- Populated dynamically -->
+                            <div class="grid-placeholder">No screenshots shared yet. Upload or paste one above!</div>
                         </div>
                     </div>
                 </div>

@@ -22,7 +22,7 @@ Upgopher is a zero-dependency Go web server for file sharing. It provides a brow
 * Copy file URLs to clipboard with one click for easy sharing
 * Search within text files directly from the web interface
 * Create custom path aliases for easy file access
-* Shared clipboard for cross-device text sharing
+* Shared clipboard for cross-device text and screenshot sharing
 * Zip folder download functionality
 * Option to hide hidden files with the -disable-hidden-files flag
 * Readonly mode to disable uploads and deletions while allowing downloads
