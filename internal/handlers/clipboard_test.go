@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +15,150 @@ import (
 
 func newTestClipboardHandler() *ClipboardHandler {
 	return NewClipboardHandler(true, 5)
+}
+
+func TestScreenshotsPostAndGet(t *testing.T) {
+	h := newTestClipboardHandler()
+	image := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0, 0, 0, 0, 'I', 'H', 'D', 'R'}
+
+	// 1. POST image
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/screenshots", bytes.NewReader(image))
+	req.RemoteAddr = "10.250.0.1:12001"
+	req.Header.Set("Content-Type", "image/png")
+	w := httptest.NewRecorder()
+	h.Screenshots()(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("POST expected 201 Created, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var created ImageEntry
+	if err := json.NewDecoder(w.Body).Decode(&created); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if created.ID == "" {
+		t.Fatal("expected non-empty ID")
+	}
+
+	// 2. GET list
+	req2 := httptest.NewRequest(http.MethodGet, "/api/v1/screenshots", nil)
+	w2 := httptest.NewRecorder()
+	h.Screenshots()(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("GET list expected 200, got %d: %s", w2.Code, w2.Body.String())
+	}
+
+	var list []ImageEntry
+	if err := json.NewDecoder(w2.Body).Decode(&list); err != nil {
+		t.Fatalf("failed to decode list: %v", err)
+	}
+	if len(list) != 1 || list[0].ID != created.ID {
+		t.Fatalf("list mismatch, got length %d", len(list))
+	}
+
+	// 3. GET raw image
+	req3 := httptest.NewRequest(http.MethodGet, "/api/v1/screenshots/image?id="+created.ID, nil)
+	w3 := httptest.NewRecorder()
+	h.ScreenshotImage()(w3, req3)
+	if w3.Code != http.StatusOK {
+		t.Fatalf("GET image expected 200, got %d: %s", w3.Code, w3.Body.String())
+	}
+	if got := w3.Header().Get("Content-Type"); got != "image/png" {
+		t.Fatalf("Content-Type = %q, want image/png", got)
+	}
+	if !bytes.Equal(w3.Body.Bytes(), image) {
+		t.Fatal("image body mismatch")
+	}
+
+	// 4. GET pretty URL direct screenshot
+	req4 := httptest.NewRequest(http.MethodGet, "/screenshot/"+created.ID, nil)
+	req4.URL.Path = created.ID
+	w4 := httptest.NewRecorder()
+	h.ServeScreenshotDirect()(w4, req4)
+	if w4.Code != http.StatusOK {
+		t.Fatalf("GET direct screenshot expected 200, got %d: %s", w4.Code, w4.Body.String())
+	}
+	if !bytes.Equal(w4.Body.Bytes(), image) {
+		t.Fatal("direct image body mismatch")
+	}
+}
+
+func TestScreenshotsRejectsNonImage(t *testing.T) {
+	h := newTestClipboardHandler()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/screenshots", strings.NewReader("<script>alert(1)</script>"))
+	req.RemoteAddr = "10.250.0.2:12002"
+	req.Header.Set("Content-Type", "image/svg+xml")
+	w := httptest.NewRecorder()
+	h.Screenshots()(w, req)
+
+	if w.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("expected 415, got %d", w.Code)
+	}
+}
+
+func TestScreenshotsLimitFIFO(t *testing.T) {
+	h := newTestClipboardHandler()
+	image := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0, 0, 0, 0, 'I', 'H', 'D', 'R'}
+
+	// Upload 52 images
+	for i := 0; i < 52; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/screenshots", bytes.NewReader(image))
+		req.RemoteAddr = fmt.Sprintf("10.250.0.%d:%d", i%250, 12000+i)
+		req.Header.Set("Content-Type", "image/png")
+		w := httptest.NewRecorder()
+		h.Screenshots()(w, req)
+		if w.Code != http.StatusCreated {
+			t.Fatalf("POST %d expected 201, got %d", i, w.Code)
+		}
+	}
+
+	// Verify count is limited to 50
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/screenshots", nil)
+	w := httptest.NewRecorder()
+	h.Screenshots()(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET expected 200, got %d", w.Code)
+	}
+
+	var list []ImageEntry
+	if err := json.NewDecoder(w.Body).Decode(&list); err != nil {
+		t.Fatalf("failed to decode list: %v", err)
+	}
+	if len(list) != 50 {
+		t.Fatalf("expected exactly 50 images in list, got %d", len(list))
+	}
+}
+
+func TestScreenshotsDelete(t *testing.T) {
+	h := newTestClipboardHandler()
+	image := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0, 0, 0, 0, 'I', 'H', 'D', 'R'}
+
+	// 1. Upload
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/screenshots", bytes.NewReader(image))
+	req.RemoteAddr = "10.250.0.1:12001"
+	req.Header.Set("Content-Type", "image/png")
+	w := httptest.NewRecorder()
+	h.Screenshots()(w, req)
+	var created ImageEntry
+	json.NewDecoder(w.Body).Decode(&created)
+
+	// 2. Delete
+	req2 := httptest.NewRequest(http.MethodDelete, "/api/v1/screenshots/image?id="+created.ID, nil)
+	req2.RemoteAddr = "10.250.0.2:12002"
+	w2 := httptest.NewRecorder()
+	h.ScreenshotImage()(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("DELETE expected 200, got %d", w2.Code)
+	}
+
+	// 3. Verify gone
+	req3 := httptest.NewRequest(http.MethodGet, "/api/v1/screenshots", nil)
+	w3 := httptest.NewRecorder()
+	h.Screenshots()(w3, req3)
+	var list []ImageEntry
+	json.NewDecoder(w3.Body).Decode(&list)
+	if len(list) != 0 {
+		t.Fatalf("expected 0 images, got %d", len(list))
+	}
 }
 
 // TestClipboardDefaultTabExists verifies "default" tab is ready on init.

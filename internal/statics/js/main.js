@@ -113,6 +113,9 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    initScreenshotsPanel();
+    initScreenshotsRealtime();
+
     // New tab name: create on Enter, cancel on Escape
     var newTabInput = document.getElementById('new-tab-name');
     if (newTabInput) {
@@ -245,6 +248,325 @@ function copyFromSharedClipboard() {
                 showToast('Could not copy: ' + err.message, 'error');
             }
         });
+}
+
+// ── Shared screenshots gallery ────────────────────────────────────────────────
+var _screenshotBlobsCache = {};
+
+function initScreenshotsPanel() {
+    var drop = document.getElementById('screenshot-drop-zone');
+    if (!drop) return;
+
+    // Check secure context
+    var isSecure = window.isSecureContext || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    var banner = document.getElementById('ssl-warning-banner');
+    if (!isSecure && banner) {
+        banner.style.display = 'block';
+        var originEl = document.getElementById('ssl-server-origin-code');
+        if (originEl) {
+            originEl.textContent = window.location.origin;
+        }
+    }
+
+    // Clipboard paste event
+    document.addEventListener('paste', handleGlobalScreenshotPaste);
+
+    // Drag and drop events
+    drop.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        drop.classList.add('drag-over');
+    });
+    drop.addEventListener('dragleave', function () {
+        drop.classList.remove('drag-over');
+    });
+    drop.addEventListener('drop', function (e) {
+        e.preventDefault();
+        drop.classList.remove('drag-over');
+        if (!e.dataTransfer || !e.dataTransfer.files) return;
+        for (var i = 0; i < e.dataTransfer.files.length; i++) {
+            var file = e.dataTransfer.files[i];
+            if (file && file.type && file.type.indexOf('image/') === 0) {
+                uploadScreenshot(file);
+                return;
+            }
+        }
+        showToast('No image found', 'error');
+    });
+
+    // File input change
+    var fileInput = document.getElementById('screenshot-file-input');
+    if (fileInput) {
+        fileInput.addEventListener('change', function () {
+            if (this.files && this.files.length > 0) {
+                uploadScreenshot(this.files[0]);
+                this.value = ''; // Reset input
+            }
+        });
+    }
+
+    // Initial load
+    loadScreenshots();
+}
+
+function handleGlobalScreenshotPaste(event) {
+    var imagesTab = document.getElementById('images-tab');
+    if (!imagesTab || !imagesTab.classList.contains('active')) return;
+
+    if (!event.clipboardData || !event.clipboardData.items) return;
+    for (var i = 0; i < event.clipboardData.items.length; i++) {
+        var item = event.clipboardData.items[i];
+        if (item.kind === 'file' && item.type && item.type.indexOf('image/') === 0) {
+            event.preventDefault();
+            uploadScreenshot(item.getAsFile());
+            return;
+        }
+    }
+}
+
+function uploadScreenshot(file) {
+    if (!file) {
+        showToast('No file to upload', 'error');
+        return;
+    }
+
+    showToast('Uploading screenshot...', 'info');
+
+    fetch('/api/v1/screenshots', {
+        method: 'POST',
+        headers: {
+            'Content-Type': file.type || 'application/octet-stream'
+        },
+        body: file
+    })
+    .then(function (response) {
+        if (!response.ok) {
+            return response.text().then(function (t) {
+                throw new Error(t.trim() || 'Error uploading screenshot');
+            });
+        }
+        return response.json();
+    })
+    .then(function (data) {
+        showToast('Screenshot uploaded successfully');
+        loadScreenshots();
+    })
+    .catch(function (err) {
+        showToast(err.message, 'error');
+    });
+}
+
+function loadScreenshots() {
+    var grid = document.getElementById('screenshots-grid');
+    if (!grid) return;
+
+    fetch('/api/v1/screenshots')
+    .then(function (r) {
+        if (!r.ok) throw new Error('Failed to load screenshots');
+        return r.json();
+    })
+    .then(function (images) {
+        renderScreenshots(images);
+    })
+    .catch(function (err) {
+        console.error('Error loading screenshots:', err);
+    });
+}
+
+function renderScreenshots(images) {
+    var grid = document.getElementById('screenshots-grid');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+    if (!images || images.length === 0) {
+        grid.innerHTML = '<div class="grid-placeholder">No screenshots shared yet. Upload or paste one above!</div>';
+        return;
+    }
+
+    images.sort(function (a, b) {
+        return new Date(b.updatedAt) - new Date(a.updatedAt);
+    });
+
+    images.forEach(function (img) {
+        var card = document.createElement('div');
+        card.className = 'screenshot-card';
+
+        var imgWrapper = document.createElement('div');
+        imgWrapper.className = 'screenshot-card-img-wrapper';
+
+        var imageEl = document.createElement('img');
+        imageEl.className = 'screenshot-card-img';
+        imageEl.alt = 'Screenshot';
+
+        var sizeSpan = document.createElement('span');
+        sizeSpan.textContent = formatFileSize(img.size);
+
+        var updateDimensions = function () {
+            if (imageEl.naturalWidth && imageEl.naturalHeight) {
+                sizeSpan.textContent = formatFileSize(img.size) + ' (' + imageEl.naturalWidth + 'x' + imageEl.naturalHeight + ')';
+            }
+        };
+        imageEl.onload = updateDimensions;
+        if (imageEl.complete) {
+            updateDimensions();
+        }
+
+        loadImageBlob(img.id, imageEl);
+
+        imgWrapper.onclick = function () {
+            window.open('/screenshot/' + img.id, '_blank', 'noopener');
+        };
+
+        imgWrapper.appendChild(imageEl);
+        card.appendChild(imgWrapper);
+
+        var footer = document.createElement('div');
+        footer.className = 'screenshot-card-footer';
+
+        var info = document.createElement('div');
+        info.className = 'screenshot-info';
+
+        var dateSpan = document.createElement('span');
+        var date = new Date(img.updatedAt);
+        dateSpan.textContent = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ' + date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+
+        info.appendChild(sizeSpan);
+        info.appendChild(dateSpan);
+        footer.appendChild(info);
+
+        var actions = document.createElement('div');
+        actions.className = 'screenshot-actions';
+
+        var copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'btn btn-secondary';
+        
+        var isSecure = window.isSecureContext || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        if (isSecure) {
+            copyBtn.innerHTML = '<i class="fa fa-clipboard"></i> Copy';
+            copyBtn.onclick = function (e) {
+                e.stopPropagation();
+                copyScreenshotToClipboard(img.id);
+            };
+        } else {
+            copyBtn.innerHTML = '<i class="fa fa-eye"></i> View/Copy';
+            copyBtn.onclick = function (e) {
+                e.stopPropagation();
+                window.open('/screenshot/' + img.id, '_blank', 'noopener');
+                showToast('Click derecho sobre la imagen -> "Copiar imagen" para copiarla manualmente.', 'info');
+            };
+        }
+
+        var deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'btn btn-delete-img';
+        deleteBtn.innerHTML = '<i class="fa fa-trash"></i>';
+        deleteBtn.onclick = function (e) {
+            e.stopPropagation();
+            deleteScreenshot(img.id);
+        };
+
+        actions.appendChild(copyBtn);
+        actions.appendChild(deleteBtn);
+        footer.appendChild(actions);
+        card.appendChild(footer);
+
+        grid.appendChild(card);
+    });
+}
+
+function loadImageBlob(id, imgElement) {
+    if (_screenshotBlobsCache[id]) {
+        imgElement.src = _screenshotBlobsCache[id];
+        return;
+    }
+
+    fetch('/api/v1/screenshots/image?id=' + id)
+    .then(function (response) {
+        if (!response.ok) throw new Error('Failed to load image');
+        return response.blob();
+    })
+    .then(function (blob) {
+        var objectUrl = URL.createObjectURL(blob);
+        _screenshotBlobsCache[id] = objectUrl;
+        imgElement.src = objectUrl;
+    })
+    .catch(function (err) {
+        console.error(err);
+    });
+}
+
+function copyScreenshotToClipboard(id) {
+    var canWriteImage = navigator.clipboard && navigator.clipboard.write && typeof ClipboardItem !== 'undefined';
+    
+    fetch('/api/v1/screenshots/image?id=' + id)
+    .then(function (response) {
+        if (!response.ok) throw new Error('Failed to fetch image for copying');
+        return response.blob();
+    })
+    .then(function (blob) {
+        if (!blob) return;
+        if (!canWriteImage) {
+            fallbackCopyScreenshot(blob);
+            return;
+        }
+        var item = new ClipboardItem((function () {
+            var data = {};
+            data[blob.type || 'image/png'] = blob;
+            return data;
+        })());
+        return navigator.clipboard.write([item]).then(function () {
+            showToast('Image copied to clipboard!');
+        });
+    })
+    .catch(function (err) {
+        showToast('Could not copy image: ' + err.message, 'error');
+    });
+}
+
+function fallbackCopyScreenshot(blob) {
+    var url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener');
+    var message = window.isSecureContext
+        ? 'Browser does not support clipboard write. Opened image in new tab.'
+        : 'Clipboard copy requires HTTPS or localhost. Opened image in new tab.';
+    showToast(message, 'warning');
+    setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+}
+
+function deleteScreenshot(id) {
+    if (!confirm('Are you sure you want to delete this screenshot?')) return;
+
+    fetch('/api/v1/screenshots/image?id=' + id, {
+        method: 'DELETE'
+    })
+    .then(function (response) {
+        if (!response.ok) throw new Error('Failed to delete screenshot');
+        showToast('Screenshot deleted');
+        loadScreenshots();
+    })
+    .catch(function (err) {
+        showToast(err.message, 'error');
+    });
+}
+
+function initScreenshotsRealtime() {
+    var sseSource = new EventSource('/clipboard/stream?tab=screenshots-global');
+    sseSource.addEventListener('change', function () {
+        loadScreenshots();
+    });
+    sseSource.onerror = function() {
+        console.warn("SSE connection error on screenshots stream");
+    };
+}
+
+function toggleSslGuide() {
+    var panel = document.getElementById('ssl-guide-panel');
+    if (!panel) return;
+    if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+    } else {
+        panel.style.display = 'none';
+    }
 }
 
 // Other functions...
@@ -1269,7 +1591,9 @@ function loadClipboardTabs(selectCurrent) {
                 selectClipboardTab(exists ? currentClipboardTab : 'default');
             } else {
                 var entry = tabs.find(function (t) { return t.name === currentClipboardTab; });
-                if (entry) updateClipboardMeta(entry);
+                if (entry) {
+                    updateClipboardMeta(entry);
+                }
                 updateForgetTokenBtn();
             }
         })
@@ -1341,6 +1665,7 @@ function selectClipboardTab(name) {
             if (r.status === 401) {
                 document.getElementById('shared-clipboard-textarea').value = '';
                 document.getElementById('clipboard-char-count').textContent = 'chars: 0';
+                clearClipboardImagePreview();
                 setClipboardEditable(false);
                 showTokenUnlockRow(name, function () { selectClipboardTab(name); });
                 return null;
@@ -1356,7 +1681,9 @@ function selectClipboardTab(name) {
             document.getElementById('shared-clipboard-textarea').value = content;
             document.getElementById('clipboard-char-count').textContent = 'chars: ' + content.length;
             var entry = clipboardTabsCache.find(function (t) { return t.name === name; });
-            if (entry) updateClipboardMeta(entry);
+            if (entry) {
+                updateClipboardMeta(entry);
+            }
             updateForgetTokenBtn();
             // Connect SSE stream for real-time updates from other clients
             connectClipboardSSE(name);
@@ -1436,6 +1763,7 @@ function createClipboardTab() {
             }
             document.getElementById('shared-clipboard-textarea').value = '';
             document.getElementById('clipboard-char-count').textContent = 'chars: 0';
+            clearClipboardImagePreview();
             setClipboardEditable(true);
             loadClipboardTabs(false);
             // Connect SSE for the newly created tab immediately.
