@@ -1,9 +1,175 @@
+/* ── Theme variables ─────────────────────────────────────────────────────── */
+:root {
+    /* Backgrounds */
+    --bg-body: #f5f5f5;
+    --bg-card: #fff;
+    --bg-card-alt: #f9f9f9;
+    --bg-hover: #e9e9e9;
+    --bg-input: #fff;
+    --bg-row-even: #f3f3f3;
+    --bg-toolbar: #f8f8f8;
+    --bg-tab-inactive: #f0f0f0;
+    --bg-tab-hover: #e0e0e0;
+    --bg-secondary-btn: #f0f0f0;
+    --bg-secondary-btn-hover: #e3e3e3;
+    --bg-kbd: #f0f0f0;
+    --bg-checkmark: #ccc;
+    --bg-checkmark-hover: #b3b3b3;
+    --bg-code-box: #ffffff;
+    --bg-clipboard-locked: #f9f9f9;
+    --bg-token-display: #f5f5f5;
+    --bg-confirm-no: #ccc;
+    --bg-cancel-btn: #f5f5f5;
+    --bg-cancel-btn-hover: #e5e5e5;
+    --bg-tab-item: #e0e0e0;
+    --bg-action-btn-hover: #f0f0f0;
+    --bg-img-wrapper: #eaeaea;
+    --bg-card-footer: #fafafa;
+
+    /* Texts */
+    --text-primary: #333;
+    --text-secondary: #555;
+    --text-muted: #666;
+    --text-placeholder: #888;
+    --text-hint: #999;
+    --text-faint: #aaa;
+    --text-disabled: #bbb;
+    --text-link: #3A8C5B;
+    --text-link-hover: #45BC75;
+    --text-line-number: #5c6370;
+    --text-checkbox: #2d2d2d;
+    --text-token-code: #333;
+    --text-confirm-no: #333;
+    --text-cancel-btn: #333333;
+    --text-modal-title: #333333;
+    --text-form-label: #333333;
+    --text-search-header: #333;
+    --text-result-line: #777;
+    --text-drop-zone: inherit;
+
+    /* Borders */
+    --border-light: #e0e0e0;
+    --border-medium: #ddd;
+    --border-input: #e1e1e1;
+    --border-table: #dddddd;
+    --border-tree-toolbar: #e8e8e8;
+    --border-tree-children: #e0e0e0;
+    --border-kbd: #ddd;
+    --border-card: #e0e0e0;
+
+    /* Shadows */
+    --shadow-card: 0 4px 15px rgba(0, 0, 0, 0.1);
+    --shadow-table: 0 0 20px rgba(0, 0, 0, 0.15);
+    --shadow-btn: 0 2px 12px rgba(0, 0, 0, 0.07);
+    --shadow-breadcrumb: 0 2px 8px rgba(0, 0, 0, 0.06);
+
+    /* Code viewer */
+    --bg-code-viewer: #1e1e1e;
+    --text-code-viewer: #d4d4d4;
+
+    /* Modal */
+    --bg-modal-overlay: rgba(0, 0, 0, 0.5);
+    --bg-modal: #ffffff;
+
+    /* Tree panel */
+    --bg-tree-panel: #ffffff;
+    --shadow-tree-panel: 4px 0 24px rgba(0, 0, 0, 0.18);
+    --tree-scrollbar: #ddd;
+    --text-tree-label: #333;
+
+    /* Misc */
+    --bg-progress-bar: #e0e0e0;
+    --bg-divider: #e0e0e0;
+    --bg-screenshot-drop-border: #cfd8d5;
+    --bg-screenshot-drop: #fff;
+    --text-screenshot-drop: #666;
+}
+
+[data-theme="dark"] {
+    --bg-body: #1a1a2e;
+    --bg-card: #16213e;
+    --bg-card-alt: #1a1a2e;
+    --bg-hover: #1f2b47;
+    --bg-input: #1e293b;
+    --bg-row-even: #1c2541;
+    --bg-toolbar: #16213e;
+    --bg-tab-inactive: #1c2541;
+    --bg-tab-hover: #1f2b47;
+    --bg-secondary-btn: #1c2541;
+    --bg-secondary-btn-hover: #1f2b47;
+    --bg-kbd: #1c2541;
+    --bg-checkmark: #3a3a5c;
+    --bg-checkmark-hover: #4a4a6c;
+    --bg-code-box: #16213e;
+    --bg-clipboard-locked: #1a1a2e;
+    --bg-token-display: #1a1a2e;
+    --bg-confirm-no: #3a3a5c;
+    --bg-cancel-btn: #1c2541;
+    --bg-cancel-btn-hover: #1f2b47;
+    --bg-tab-item: #1c2541;
+    --bg-action-btn-hover: #1f2b47;
+    --bg-img-wrapper: #1e293b;
+    --bg-card-footer: #1c2541;
+
+    --text-primary: #f1f5f9;
+    --text-secondary: #cbd5e1;
+    --text-muted: #94a3b8;
+    --text-placeholder: #94a3b8;
+    --text-hint: #64748b;
+    --text-faint: #64748b;
+    --text-disabled: #64748b;
+    --text-link: #6ee7b7;
+    --text-link-hover: #a7f3d0;
+    --text-line-number: #64748b;
+    --text-checkbox: #e2e8f0;
+    --text-token-code: #f1f5f9;
+    --text-confirm-no: #f1f5f9;
+    --text-cancel-btn: #f1f5f9;
+    --text-modal-title: #f1f5f9;
+    --text-form-label: #f1f5f9;
+    --text-search-header: #f1f5f9;
+    --text-result-line: #94a3b8;
+    --text-drop-zone: #cbd5e1;
+
+    --border-light: #334155;
+    --border-medium: #334155;
+    --border-input: #334155;
+    --border-table: #334155;
+    --border-tree-toolbar: #334155;
+    --border-tree-children: #334155;
+    --border-kbd: #334155;
+    --border-card: #334155;
+
+    --shadow-card: 0 4px 15px rgba(0, 0, 0, 0.4);
+    --shadow-table: 0 0 20px rgba(0, 0, 0, 0.5);
+    --shadow-btn: 0 2px 12px rgba(0, 0, 0, 0.3);
+    --shadow-breadcrumb: 0 2px 8px rgba(0, 0, 0, 0.25);
+
+    --bg-code-viewer: #0d1117;
+    --text-code-viewer: #c9d1d9;
+
+    --bg-modal-overlay: rgba(0, 0, 0, 0.7);
+    --bg-modal: #16213e;
+
+    --bg-tree-panel: #16213e;
+    --shadow-tree-panel: 4px 0 24px rgba(0, 0, 0, 0.5);
+    --tree-scrollbar: #2a2a4a;
+    --text-tree-label: #e0e0e0;
+
+    --bg-progress-bar: #2a2a4a;
+    --bg-divider: #2a2a4a;
+    --bg-screenshot-drop-border: #2a2a4a;
+    --bg-screenshot-drop: #16213e;
+    --text-screenshot-drop: #b0b0b0;
+}
+
 body {
-    background-color: #f5f5f5;
+    background-color: var(--bg-body);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     margin: 0;
     padding: 20px;
-    color: #333;
+    color: var(--text-primary);
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .tab-content > div:first-child {
@@ -48,9 +214,9 @@ body {
     align-items: center;
     gap: 2px;
     padding: 10px 16px;
-    background: #fff;
+    background: var(--bg-card);
     border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--shadow-breadcrumb);
     margin-bottom: 16px;
     flex-wrap: nowrap;
     font-size: 14px;
@@ -78,16 +244,16 @@ body {
 }
 
 .breadcrumb-segment.active {
-    color: #333;
+    color: var(--text-primary);
     font-weight: 600;
     cursor: default;
-    background: #f0f0f0;
+    background: var(--bg-tab-inactive);
     flex-shrink: 0;
     max-width: 240px;
 }
 
 .breadcrumb-separator {
-    color: #aaa;
+    color: var(--text-faint);
     font-size: 18px;
     line-height: 1;
     user-select: none;
@@ -123,8 +289,8 @@ body {
 
 .tab-link {
     padding: 12px 24px;
-    background-color: #f0f0f0;
-    color: #555;
+    background-color: var(--bg-tab-inactive);
+    color: var(--text-secondary);
     border: none;
     cursor: pointer;
     font-size: 16px;
@@ -138,7 +304,7 @@ body {
 }
 
 .tab-link:hover {
-    background-color: #e0e0e0;
+    background-color: var(--bg-tab-hover);
 }
 
 .tab-link.active {
@@ -164,9 +330,9 @@ body {
 #shared-clipboard-container {
     margin: 30px auto;
     max-width: 850px;
-    background: #fff;
+    background: var(--bg-card);
     border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-card);
     overflow: hidden;
 }
 
@@ -191,15 +357,15 @@ body {
 
 .clipboard-content {
     padding: 22px 25px;
-    background-color: #f9f9f9;
-    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    background-color: var(--bg-card-alt);
+    border-top: 1px solid var(--border-light);
 }
 
 #shared-clipboard-textarea {
     width: 100%;
     min-height: 120px;
     padding: 15px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-medium);
     border-radius: 6px;
     font-size: 15px;
     box-sizing: border-box;
@@ -207,6 +373,8 @@ body {
     transition: border-color 0.2s ease;
     box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: var(--bg-input);
+    color: var(--text-primary);
 }
 
 #shared-clipboard-textarea:focus {
@@ -228,7 +396,7 @@ body {
     border-collapse: collapse;
     font-size: 0.9em;
     font-family: sans-serif;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-table);
     border-radius: 8px;
     overflow: hidden;
     margin-bottom: 30px;
@@ -263,20 +431,20 @@ body {
         white-space: nowrap;
     }
     text-align: center;
-    border-bottom: 1px solid #dddddd;
+    border-bottom: 1px solid var(--border-table);
 }
 
 .styled-table tbody tr {
-    border-bottom: 1px solid #dddddd;
+    border-bottom: 1px solid var(--border-table);
     transition: background-color 0.2s;
 }
 
 .styled-table tbody tr:nth-of-type(even) {
-    background-color: #f3f3f3;
+    background-color: var(--bg-row-even);
 }
 
 .styled-table tbody tr:hover {
-    background-color: #e9e9e9;
+    background-color: var(--bg-hover);
 }
 
 .styled-table tbody tr:last-of-type {
@@ -284,7 +452,7 @@ body {
 }
 
 .styled-table tfoot tr {
-    background-color: #f3f3f3;
+    background-color: var(--bg-row-even);
     border-top: 2px solid #009879;
 }
 
@@ -294,13 +462,13 @@ body {
 }
 
 td a {
-    color: #3A8C5B;
+    color: var(--text-link);
     font-weight: bold;
     text-decoration: none;
 }
 
 td a:hover {
-    color: #45BC75;
+    color: var(--text-link-hover);
     text-decoration: underline;
 }
 
@@ -321,7 +489,7 @@ td a:hover {
 .action-btn {
     background: none;
     border: none;
-    color: #555;
+    color: var(--text-secondary);
     cursor: pointer;
     padding: 5px;
     border-radius: 4px;
@@ -329,7 +497,7 @@ td a:hover {
 }
 
 .action-btn:hover {
-    background-color: #f0f0f0;
+    background-color: var(--bg-action-btn-hover);
 }
 
 .action-btn.edit:hover {
@@ -372,12 +540,12 @@ td a:hover {
 }
 
 .btn-secondary {
-    background-color: #f0f0f0;
-    color: #333;
+    background-color: var(--bg-secondary-btn);
+    color: var(--text-primary);
 }
 
 .btn-secondary:hover {
-    background-color: #e3e3e3;
+    background-color: var(--bg-secondary-btn-hover);
 }
 
 .btn i {
@@ -387,19 +555,19 @@ td a:hover {
 /* Code Box */
 .code-box {
     margin: 20px auto;
-    background-color: #ffffff;
+    background-color: var(--bg-code-box);
     color: #009879;
     border-radius: 5px;
     font-family: 'Courier New', monospace;
     width: 80%;
     overflow-x: auto;
     white-space: pre;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-table);
     padding: 15px;
 }
 
 .line-number {
-    color: #5c6370;
+    color: var(--text-line-number);
     display: inline-block;
     width: 30px;
     user-select: none;
@@ -438,9 +606,9 @@ td a:hover {
     gap: 0;
     margin: 20px auto;
     max-width: 760px;
-    background: #fff;
+    background: var(--bg-card);
     border-radius: 10px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
+    box-shadow: var(--shadow-btn);
     padding: 16px 24px;
     flex-wrap: wrap;
 }
@@ -477,8 +645,8 @@ td a:hover {
     align-items: center;
     gap: 6px;
     padding: 9px 14px;
-    background-color: #f0f0f0;
-    color: #333;
+    background-color: var(--bg-tab-inactive);
+    color: var(--text-primary);
     border-radius: 6px;
     cursor: pointer;
     transition: background-color 0.2s;
@@ -487,7 +655,7 @@ td a:hover {
 }
 
 .file-input-label:hover {
-    background-color: #e3e3e3;
+    background-color: var(--bg-secondary-btn-hover);
 }
 
 .file-input-label .fa-folder-o {
@@ -496,7 +664,7 @@ td a:hover {
 
 .file-name {
     font-size: 13px;
-    color: #666;
+    color: var(--text-muted);
     max-width: 180px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -513,7 +681,7 @@ td a:hover {
     display: inline-block;
     width: 1px;
     height: 32px;
-    background: #e0e0e0;
+    background: var(--bg-divider);
     margin: 0 20px;
     flex-shrink: 0;
 }
@@ -528,9 +696,9 @@ td a:hover {
     margin: 20px auto;
     width: 80%;
     max-width: 745px;
-    background: #fff;
+    background: var(--bg-card);
     border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-card);
     padding: 20px;
     animation: fadeIn 0.3s ease-in;
 }
@@ -557,7 +725,7 @@ td a:hover {
 .progress-bar {
     width: 100%;
     height: 12px;
-    background-color: #e0e0e0;
+    background-color: var(--bg-progress-bar);
     border-radius: 6px;
     overflow: hidden;
     margin-bottom: 10px;
@@ -609,7 +777,7 @@ td a:hover {
     justify-content: space-between;
     align-items: center;
     font-size: 14px;
-    color: #666;
+    color: var(--text-muted);
 }
 
 #upload-speed, #upload-eta {
@@ -624,9 +792,9 @@ td a:hover {
     gap: 10px;
     margin: 28px auto;
     max-width: 760px;
-    background: #fff;
+    background: var(--bg-card);
     border-radius: 10px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
+    box-shadow: var(--shadow-btn);
     padding: 14px 24px;
     flex-wrap: wrap;
 }
@@ -663,7 +831,7 @@ td a:hover {
     cursor: pointer;
     font-size: 0.95em;
     user-select: none;
-    color: #2d2d2d;
+    color: var(--text-checkbox);
 }
 
 .checkbox-container input {
@@ -680,13 +848,13 @@ td a:hover {
     left: 0;
     height: 18px;
     width: 18px;
-    background-color: #ccc;
+    background-color: var(--bg-checkmark);
     border-radius: 3px;
     transition: all 0.2s;
 }
 
 .checkbox-container:hover input ~ .checkmark {
-    background-color: #b3b3b3;
+    background-color: var(--bg-checkmark-hover);
 }
 
 .checkbox-container input:checked ~ .checkmark {
@@ -723,14 +891,14 @@ td a:hover {
     bottom: 0;
     width: 100vw;
     height: 100vh;
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: var(--bg-modal-overlay);
     z-index: 1000;
     justify-content: center;
     align-items: center;
 }
 
 .modal {
-    background: #ffffff;
+    background: var(--bg-modal);
     border-radius: 8px;
     padding: 24px;
     width: 90%;
@@ -746,7 +914,7 @@ td a:hover {
 }
 
 .modal-title {
-    color: #333333;
+    color: var(--text-modal-title);
     margin: 0;
     font-size: 1.5rem;
     font-weight: 600;
@@ -759,18 +927,20 @@ td a:hover {
 .form-group label {
     display: block;
     margin-bottom: 8px;
-    color: #333333;
+    color: var(--text-form-label);
     font-weight: 500;
 }
 
 .form-group input {
     width: 100%;
     padding: 10px;
-    border: 1px solid #e1e1e1;
+    border: 1px solid var(--border-input);
     border-radius: 4px;
     font-size: 14px;
     transition: border-color 0.3s ease;
     box-sizing: border-box;
+    background-color: var(--bg-input);
+    color: var(--text-primary);
 }
 
 .form-group input:focus {
@@ -797,12 +967,12 @@ td a:hover {
 }
 
 .btn-cancel {
-    background-color: #f5f5f5;
-    color: #333333;
+    background-color: var(--bg-cancel-btn);
+    color: var(--text-cancel-btn);
 }
 
 .btn-cancel:hover {
-    background-color: #e5e5e5;
+    background-color: var(--bg-cancel-btn-hover);
 }
 
 .btn-create {
@@ -840,9 +1010,11 @@ td a:hover {
 #searchTerm {
     flex-grow: 1;
     padding: 10px 12px;
-    border: 1px solid #e1e1e1;
+    border: 1px solid var(--border-input);
     border-radius: 5px;
     font-size: 14px;
+    background-color: var(--bg-input);
+    color: var(--text-primary);
 }
 
 .btn-search {
@@ -872,12 +1044,12 @@ td a:hover {
 .search-shortcuts {
     margin-bottom: 15px;
     text-align: center;
-    color: #666;
+    color: var(--text-muted);
 }
 
 .search-shortcuts kbd {
-    background-color: #f0f0f0;
-    border: 1px solid #ddd;
+    background-color: var(--bg-kbd);
+    border: 1px solid var(--border-kbd);
     border-radius: 3px;
     box-shadow: 0 1px 0 rgba(0,0,0,0.2);
     padding: 2px 5px;
@@ -885,8 +1057,8 @@ td a:hover {
 }
 
 .search-results-container {
-    background-color: #f9f9f9;
-    border: 1px solid #e1e1e1;
+    background-color: var(--bg-card-alt);
+    border: 1px solid var(--border-input);
     border-radius: 5px;
     max-height: 400px;
     overflow-y: auto;
@@ -895,14 +1067,14 @@ td a:hover {
 
 .search-results-header {
     padding: 10px 15px;
-    background-color: #f0f0f0;
-    border-bottom: 1px solid #e1e1e1;
+    background-color: var(--bg-tab-inactive);
+    border-bottom: 1px solid var(--border-input);
 }
 
 .search-results-header h3 {
     margin: 0;
     font-size: 16px;
-    color: #333;
+    color: var(--text-search-header);
 }
 
 .search-results {
@@ -911,13 +1083,13 @@ td a:hover {
 
 .search-result-item {
     padding: 12px 15px;
-    border-bottom: 1px solid #e1e1e1;
+    border-bottom: 1px solid var(--border-input);
     cursor: pointer;
     transition: background-color 0.2s;
 }
 
 .search-result-item:hover {
-    background-color: #f0f0f0;
+    background-color: var(--bg-tab-inactive);
 }
 
 .search-result-item:last-child {
@@ -928,7 +1100,7 @@ td a:hover {
     display: inline-block;
     min-width: 40px;
     padding-right: 15px;
-    color: #777;
+    color: var(--text-result-line);
     font-weight: 500;
     text-align: right;
 }
@@ -945,7 +1117,7 @@ td a:hover {
 .placeholder-text {
     padding: 20px;
     text-align: center;
-    color: #999;
+    color: var(--text-hint);
     font-style: italic;
 }
 
@@ -974,7 +1146,7 @@ td a:hover {
     text-align: center;
     color: #3498db;
     font-style: italic;
-    border-top: 1px solid #e1e1e1;
+    border-top: 1px solid var(--border-input);
 }
 
 /* Responsive Styles */
@@ -1088,8 +1260,8 @@ td a:hover {
     align-items: center;
     gap: 4px;
     padding: 10px 25px 0;
-    background: #f0f0f0;
-    border-bottom: 1px solid #ddd;
+    background: var(--bg-tab-inactive);
+    border-bottom: 1px solid var(--border-medium);
     flex-wrap: wrap;
 }
 
@@ -1104,7 +1276,7 @@ td a:hover {
     display: inline-flex;
     align-items: center;
     border-radius: 4px 4px 0 0;
-    background: #e0e0e0;
+    background: var(--bg-tab-item);
     transition: background 0.2s;
 }
 
@@ -1118,7 +1290,7 @@ td a:hover {
     border: none;
     cursor: pointer;
     font-size: 13px;
-    color: #555;
+    color: var(--text-secondary);
     border-radius: 4px 4px 0 0;
 }
 
@@ -1147,12 +1319,12 @@ td a:hover {
 
 .clipboard-tab-add {
     padding: 6px 10px;
-    background: #e0e0e0;
+    background: var(--bg-tab-item);
     border: none;
     border-radius: 4px;
     cursor: pointer;
     font-size: 13px;
-    color: #555;
+    color: var(--text-secondary);
     margin-left: auto;
     transition: background 0.2s, color 0.2s;
 }
@@ -1168,16 +1340,18 @@ td a:hover {
     align-items: center;
     gap: 8px;
     padding: 8px 25px;
-    background: #f9f9f9;
-    border-bottom: 1px solid #ddd;
+    background: var(--bg-card-alt);
+    border-bottom: 1px solid var(--border-medium);
 }
 
 #new-tab-name {
     padding: 6px 10px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-medium);
     border-radius: 4px;
     font-size: 13px;
     flex: 1;
+    background-color: var(--bg-input);
+    color: var(--text-primary);
 }
 
 #new-tab-name:focus {
@@ -1199,7 +1373,7 @@ td a:hover {
     gap: 12px;
     padding: 4px 0 0;
     font-size: 12px;
-    color: #999;
+    color: var(--text-hint);
 }
 
 /* ── Token protection UI ─────────────────────────────────────────────────── */
@@ -1211,9 +1385,9 @@ td a:hover {
     gap: 4px;
     cursor: pointer;
     font-size: 13px;
-    color: #777;
+    color: var(--text-result-line);
     padding: 4px 6px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-medium);
     border-radius: 4px;
     user-select: none;
     transition: border-color 0.2s, color 0.2s;
@@ -1244,7 +1418,7 @@ td a:hover {
     background: #fff8e1;
     border-bottom: 1px solid #ffe082;
     font-size: 13px;
-    color: #555;
+    color: var(--text-secondary);
 }
 
 .token-unlock-row i.fa-lock {
@@ -1257,7 +1431,7 @@ td a:hover {
     border-radius: 4px;
     font-size: 13px;
     flex: 1;
-    background: white;
+    background: var(--bg-input);
 }
 
 #token-unlock-input:focus {
@@ -1274,10 +1448,10 @@ td a:hover {
     padding: 2px 8px;
     font-size: 11px;
     background: none;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-medium);
     border-radius: 3px;
     cursor: pointer;
-    color: #999;
+    color: var(--text-hint);
     margin-left: auto;
     transition: color 0.2s, border-color 0.2s;
 }
@@ -1295,10 +1469,10 @@ td a:hover {
     padding: 2px 7px;
     font-size: 11px;
     background: none;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-medium);
     border-radius: 3px;
     cursor: pointer;
-    color: #999;
+    color: var(--text-hint);
     transition: color 0.2s, border-color 0.2s;
     line-height: 1;
 }
@@ -1324,9 +1498,9 @@ td a:hover {
     gap: 4px;
     cursor: pointer;
     font-size: 11px;
-    color: #777;
+    color: var(--text-result-line);
     padding: 2px 8px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-medium);
     border-radius: 3px;
     user-select: none;
     transition: border-color 0.2s, color 0.2s;
@@ -1350,17 +1524,17 @@ td a:hover {
 }
 
 .autosave-idle    { color: transparent; }
-.autosave-pending { color: #aaa; }
+.autosave-pending { color: var(--text-faint); }
 .autosave-saving  { color: #e67e22; }
 .autosave-saved   { color: #009879; }
-.autosave-off     { color: #bbb; }
+.autosave-off     { color: var(--text-disabled); }
 
 /* Locked textarea state */
 #shared-clipboard-textarea.clipboard-locked {
-    background: #f9f9f9;
-    color: #bbb;
+    background: var(--bg-clipboard-locked);
+    color: var(--text-disabled);
     cursor: not-allowed;
-    border-color: #e0e0e0;
+    border-color: var(--border-light);
     opacity: 0.8;
 }
 
@@ -1387,8 +1561,8 @@ td a:hover {
     display: flex;
     align-items: center;
     gap: 8px;
-    background: #f5f5f5;
-    border: 1px solid #ddd;
+    background: var(--bg-token-display);
+    border: 1px solid var(--border-medium);
     border-radius: 4px;
     padding: 10px 12px;
 }
@@ -1398,7 +1572,7 @@ td a:hover {
     font-family: monospace;
     font-size: 13px;
     word-break: break-all;
-    color: #333;
+    color: var(--text-token-code);
     user-select: all;
 }
 
@@ -1426,8 +1600,8 @@ td a:hover {
 }
 
 .clipboard-tab-confirm-no {
-    background: #ccc;
-    color: #333;
+    background: var(--bg-confirm-no);
+    color: var(--text-confirm-no);
 }
 
 /* ── Toast notifications ──────────────────────────────────────────────────── */
@@ -1516,7 +1690,7 @@ td a:hover {
 .file-viewer-content-container {
     flex: 1;
     overflow: hidden;
-    background-color: #1e1e1e;
+    background-color: var(--bg-code-viewer);
     border-radius: 5px;
     margin-bottom: 16px;
     min-height: 200px;
@@ -1527,7 +1701,7 @@ td a:hover {
 .file-viewer-pre {
     margin: 0;
     padding: 16px;
-    color: #d4d4d4;
+    color: var(--text-code-viewer);
     font-family: 'Courier New', 'Consolas', monospace;
     font-size: 13px;
     line-height: 1.6;
@@ -1558,8 +1732,8 @@ td a:hover {
     bottom: 0;
     width: 320px;
     max-width: 90vw;
-    background: #ffffff;
-    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.18);
+    background: var(--bg-tree-panel);
+    box-shadow: var(--shadow-tree-panel);
     display: flex;
     flex-direction: column;
     z-index: 1001;
@@ -1612,8 +1786,8 @@ td a:hover {
     display: flex;
     gap: 8px;
     padding: 10px 16px;
-    border-bottom: 1px solid #e8e8e8;
-    background: #f8f8f8;
+    border-bottom: 1px solid var(--border-tree-toolbar);
+    background: var(--bg-toolbar);
     flex-shrink: 0;
 }
 
@@ -1630,7 +1804,7 @@ td a:hover {
     overflow-y: auto;
     padding: 8px 0;
     scrollbar-width: thin;
-    scrollbar-color: #ddd transparent;
+    scrollbar-color: var(--tree-scrollbar) transparent;
 }
 
 .tree-container::-webkit-scrollbar {
@@ -1638,7 +1812,7 @@ td a:hover {
 }
 
 .tree-container::-webkit-scrollbar-thumb {
-    background: #ddd;
+    background: var(--tree-scrollbar);
     border-radius: 4px;
 }
 
@@ -1683,7 +1857,7 @@ td a:hover {
     border: none;
     cursor: pointer;
     font-size: 11px;
-    color: #999;
+    color: var(--text-hint);
     flex-shrink: 0;
     border-radius: 3px;
     transition: color 0.15s, background-color 0.15s, transform 0.2s;
@@ -1717,7 +1891,7 @@ td a:hover {
 .tree-label {
     flex: 1;
     font-size: 13px;
-    color: #333;
+    color: var(--text-tree-label);
     padding: 2px 4px;
     border-radius: 3px;
     cursor: pointer;
@@ -1741,7 +1915,7 @@ td a:hover {
 .tree-children {
     display: none;
     padding-left: 20px;
-    border-left: 1px dashed #e0e0e0;
+    border-left: 1px dashed var(--border-tree-children);
     margin-left: 18px;
 }
 
@@ -1753,7 +1927,7 @@ td a:hover {
 .tree-loading-inline {
     padding: 6px 12px;
     font-size: 12px;
-    color: #aaa;
+    color: var(--text-faint);
     font-style: italic;
     display: flex;
     align-items: center;
@@ -1764,7 +1938,7 @@ td a:hover {
 .tree-loading {
     padding: 24px;
     text-align: center;
-    color: #aaa;
+    color: var(--text-faint);
     font-style: italic;
     font-size: 14px;
 }
@@ -1772,8 +1946,34 @@ td a:hover {
 .tree-empty {
     padding: 24px;
     text-align: center;
-    color: #bbb;
+    color: var(--text-disabled);
     font-size: 13px;
+}
+
+/* ── Theme toggle ────────────────────────────────────────────────────────── */
+.theme-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 900;
+    background: var(--bg-card);
+    border: 1px solid var(--border-medium);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 18px;
+    color: var(--text-secondary);
+    box-shadow: var(--shadow-btn);
+    transition: background-color 0.2s, color 0.2s, transform 0.2s;
+}
+
+.theme-toggle:hover {
+    transform: scale(1.1);
+    color: #009879;
 }
 
 @media (max-width: 480px) {

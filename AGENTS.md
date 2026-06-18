@@ -8,7 +8,6 @@ Compact, repo-specific notes for OpenCode sessions.
 - Must remain runnable as a standalone binary across major OSes (Windows/macOS/Linux).
 - Always `security.IsSafePath(baseDir, fullPath)` before any filesystem read/write/delete/walk.
 - User paths in URLs must remain base64-encoded (decode from `?path=` only).
-- Never delete directories via file delete endpoints.
 - Keep auth wrapping behavior in `internal/server/router.go` intact (conditional BasicAuth, constant-time compare).
 - Do not leak absolute filesystem paths in user-facing errors.
 

@@ -1702,6 +1702,9 @@ function closeErrorModal() {
 }
 
 function deleteFolder(encodedPath) {
+    if (!window.confirm("¿Estás seguro de que deseas eliminar este directorio y todo su contenido?")) {
+        return;
+    }
     fetch('/delete/?path=' + encodeURIComponent(encodedPath))
         .then(function (response) {
             if (response.ok || response.redirected) {
@@ -1998,3 +2001,36 @@ function navigateToFolder(encodedPath) {
         window.location.href = '/?path=' + encodeURIComponent(encodedPath);
     }
 }
+
+// ponytail: theme toggle — localStorage + data-attribute, minimal
+function toggleTheme() {
+    var html = document.documentElement;
+    var current = html.getAttribute('data-theme');
+    var next = current === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('upgopher_theme', next);
+    updateThemeIcon(next);
+}
+
+function updateThemeIcon(theme) {
+    var icon = document.getElementById('themeIcon');
+    if (icon) {
+        icon.className = theme === 'dark' ? 'fa fa-sun-o' : 'fa fa-moon-o';
+    }
+}
+
+// Apply saved theme on load
+(function() {
+    var saved = localStorage.getItem('upgopher_theme');
+    // ponytail: por defecto modo claro, ignorando prefers-color-scheme si se solicita así
+    if (!saved) {
+        saved = 'light';
+    }
+    if (saved === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        // Icon update is deferred to ensure DOM is ready, though this script runs at the end
+        document.addEventListener("DOMContentLoaded", function() {
+            updateThemeIcon('dark');
+        });
+    }
+})();

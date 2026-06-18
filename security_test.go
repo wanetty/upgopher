@@ -94,8 +94,8 @@ func TestPathTraversalAttacks(t *testing.T) {
 	}
 }
 
-// TestDirectoryDeletionPrevention tests that directories cannot be deleted
-func TestDirectoryDeletionPrevention(t *testing.T) {
+// TestRecursiveDirectoryDeletion tests that non-empty directories can be deleted recursively
+func TestRecursiveDirectoryDeletion(t *testing.T) {
 	tempDir := t.TempDir()
 
 	testSubDir := filepath.Join(tempDir, "testdir")
@@ -121,19 +121,14 @@ func TestDirectoryDeletionPrevention(t *testing.T) {
 
 	handler(w, req)
 
-	// Should return 403 Forbidden because directory is not empty
-	if w.Code != http.StatusForbidden {
-		t.Errorf("Expected status 403 Forbidden, got %d", w.Code)
+	// Should return 303 See Other after successful deletion
+	if w.Code != http.StatusSeeOther {
+		t.Errorf("Expected status 303 See Other, got %d", w.Code)
 	}
 
-	// Verify directory still exists
-	if _, err := os.Stat(testSubDir); os.IsNotExist(err) {
-		t.Error("Directory was deleted despite protection!")
-	}
-
-	// Verify body contains appropriate error message
-	if !strings.Contains(w.Body.String(), "Directory is not empty") {
-		t.Errorf("Expected error message about non-empty directory, got: %s", w.Body.String())
+	// Verify directory no longer exists
+	if _, err := os.Stat(testSubDir); !os.IsNotExist(err) {
+		t.Error("Directory was not deleted recursively!")
 	}
 }
 

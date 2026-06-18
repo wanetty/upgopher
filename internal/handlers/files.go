@@ -231,7 +231,7 @@ func (fh *FileHandlers) Delete() http.HandlerFunc {
 			return
 		}
 
-		fileInfo, err := os.Stat(fullFilePath)
+		_, err = os.Stat(fullFilePath)
 		if os.IsNotExist(err) {
 			http.Error(w, "File not found", http.StatusNotFound)
 			if !fh.Quiet {
@@ -240,24 +240,7 @@ func (fh *FileHandlers) Delete() http.HandlerFunc {
 			return
 		}
 
-		// Only allow deleting empty directories
-		if fileInfo.IsDir() {
-			entries, readErr := os.ReadDir(fullFilePath)
-			if readErr != nil {
-				http.Error(w, "Cannot read directory", http.StatusInternalServerError)
-				log.Printf("[%s] Error reading directory: %v\n", time.Now().Format("2006-01-02 15:04:05"), readErr)
-				return
-			}
-			if len(entries) > 0 {
-				http.Error(w, "Directory is not empty", http.StatusForbidden)
-				if !fh.Quiet {
-					log.Printf("[%s] Attempt to delete non-empty directory blocked: %s\n", time.Now().Format("2006-01-02 15:04:05"), fullFilePath)
-				}
-				return
-			}
-		}
-
-		err = os.Remove(fullFilePath)
+		err = os.RemoveAll(fullFilePath)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			log.Printf("[%s] Error removing file: %v\n", time.Now().Format("2006-01-02 15:04:05"), err)

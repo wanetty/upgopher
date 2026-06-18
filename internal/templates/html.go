@@ -42,7 +42,7 @@ func CreateFolderRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo,
 
 	deleteBtn := ""
 	if !readOnly {
-		deleteBtn = fmt.Sprintf(`<button class="action-btn delete" title="Delete empty folder" onclick="deleteFolder('%s')"><i class="fa fa-trash"></i></button>`, escapedencodedFilePath)
+		deleteBtn = fmt.Sprintf(`<button class="action-btn delete" title="Delete folder and contents" onclick="deleteFolder('%s')"><i class="fa fa-trash"></i></button>`, escapedencodedFilePath)
 	}
 
 	return fmt.Sprintf(`
