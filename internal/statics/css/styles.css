@@ -1,5 +1,14 @@
 /* ── Theme variables ─────────────────────────────────────────────────────── */
 :root {
+    /* PR Warning & Danger Colors */
+    --bg-warning: #fff3cd;
+    --border-warning: #ffc107;
+    --text-warning: #856404;
+    --icon-warning: #e67e22;
+    --bg-warning-code: rgba(133, 100, 4, 0.08);
+    --bg-danger-light: #fce4e4;
+    --border-danger-light: #f9c2c2;
+
     /* Backgrounds */
     --bg-body: #f5f5f5;
     --bg-card: #fff;
@@ -86,6 +95,15 @@
 }
 
 [data-theme="dark"] {
+    /* PR Warning & Danger Colors */
+    --bg-warning: #423004;
+    --border-warning: #b38600;
+    --text-warning: #ffd154;
+    --icon-warning: #f39c12;
+    --bg-warning-code: rgba(255, 209, 84, 0.15);
+    --bg-danger-light: #4a1515;
+    --border-danger-light: #7a2222;
+
     --bg-body: #1a1a2e;
     --bg-card: #16213e;
     --bg-card-alt: #1a1a2e;
@@ -393,7 +411,7 @@ body {
 .shared-images-container {
     margin: 30px auto;
     max-width: 850px;
-    background: #fff;
+    background: var(--bg-card);
     border-radius: 8px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
     overflow: hidden;
@@ -402,15 +420,15 @@ body {
 
 .images-content {
     padding: 22px 25px;
-    background-color: #f9f9f9;
-    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    background-color: var(--bg-card-alt);
+    border-top: 1px solid var(--border-light);
     position: relative;
 }
 
 .fifo-notice {
-    background-color: rgba(0, 152, 121, 0.08);
-    border-left: 4px solid #009879;
-    color: #00705a;
+    background-color: rgba(var(--primary-rgb), 0.08);
+    border-left: 4px solid var(--primary-color);
+    color: var(--primary-gradient-end);
     padding: 10px 14px;
     border-radius: 4px;
     margin-bottom: 20px;
@@ -422,9 +440,9 @@ body {
 
 /* SSL Warning Banner */
 .ssl-warning-banner {
-    background-color: #fff3cd;
-    border-left: 4px solid #ffc107;
-    color: #856404;
+    background-color: var(--bg-warning);
+    border-left: 4px solid var(--border-warning);
+    color: var(--text-warning);
     padding: 14px 18px;
     border-radius: 4px;
     margin-bottom: 20px;
@@ -441,7 +459,7 @@ body {
 
 .ssl-warning-icon {
     font-size: 20px;
-    color: #e67e22;
+    color: var(--icon-warning);
     margin-top: 2px;
 }
 
@@ -450,29 +468,29 @@ body {
 }
 
 .ssl-guide-link {
-    color: #00705a;
+    color: var(--primary-gradient-end);
     font-weight: 600;
     text-decoration: underline;
     cursor: pointer;
 }
 
 .ssl-guide-link:hover {
-    color: #009879;
+    color: var(--primary-color);
 }
 
 /* SSL Config Guide Panel */
 .ssl-guide-panel {
     margin-top: 15px;
     padding-top: 15px;
-    border-top: 1px dashed rgba(133, 100, 4, 0.2);
-    color: #666;
+    border-top: 1px dashed var(--border-warning);
+    color: var(--text-muted);
     font-size: 13.5px;
     line-height: 1.6;
 }
 
 .ssl-guide-panel h4 {
     margin: 0 0 10px 0;
-    color: #856404;
+    color: var(--text-warning);
     font-size: 14.5px;
     font-weight: 600;
 }
@@ -487,8 +505,8 @@ body {
 }
 
 .selectable-code {
-    background: rgba(133, 100, 4, 0.08);
-    color: #856404;
+    background: var(--bg-warning-code);
+    color: var(--text-warning);
     padding: 3px 6px;
     border-radius: 4px;
     font-family: SFMono-Regular, Consolas, Monaco, monospace;
@@ -502,9 +520,9 @@ body {
 .screenshot-drop-zone {
     width: 100%;
     min-height: 100px;
-    border: 2px dashed #cfd8d5;
+    border: 2px dashed var(--bg-screenshot-drop-border);
     border-radius: 8px;
-    background: #fff;
+    background: var(--bg-screenshot-drop);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -515,21 +533,21 @@ body {
     cursor: pointer;
     transition: all 0.2s ease;
     text-align: center;
-    color: #666;
+    color: var(--text-screenshot-drop);
     font-size: 14px;
 }
 
 .screenshot-drop-zone i {
     font-size: 28px;
-    color: #009879;
+    color: var(--primary-color);
 }
 
 .screenshot-drop-zone:focus,
 .screenshot-drop-zone.drag-over {
     outline: none;
-    border-color: #009879;
-    background: rgba(0, 152, 121, 0.03);
-    box-shadow: 0 0 0 3px rgba(0, 152, 121, 0.08);
+    border-color: var(--primary-color);
+    background: rgba(var(--primary-rgb), 0.03);
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.08);
 }
 
 /* Screenshots Grid */
@@ -544,16 +562,16 @@ body {
     grid-column: 1 / -1;
     text-align: center;
     padding: 40px 20px;
-    color: #888;
+    color: var(--text-placeholder);
     font-style: italic;
     font-size: 14px;
 }
 
 /* Screenshot Card */
 .screenshot-card {
-    background: #ffffff;
+    background: var(--bg-card);
     border-radius: 8px;
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--border-card);
     box-shadow: 0 3px 8px rgba(0, 0, 0, 0.04);
     overflow: hidden;
     display: flex;
@@ -565,14 +583,14 @@ body {
 .screenshot-card:hover {
     transform: translateY(-3px);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
-    border-color: #009879;
+    border-color: var(--primary-color);
 }
 
 .screenshot-card-img-wrapper {
     width: 100%;
     height: 120px;
     overflow: hidden;
-    background: #eaeaea;
+    background: var(--bg-img-wrapper);
     position: relative;
     cursor: pointer;
 }
@@ -593,15 +611,15 @@ body {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    background: #fafafa;
-    border-top: 1px solid #f0f0f0;
+    background: var(--bg-card-footer);
+    border-top: 1px solid var(--border-light);
 }
 
 .screenshot-info {
     display: flex;
     justify-content: space-between;
     font-size: 11px;
-    color: #888;
+    color: var(--text-hint);
 }
 
 .screenshot-actions {
@@ -625,15 +643,15 @@ body {
 }
 
 .screenshot-actions .btn-delete-img {
-    background-color: #fce4e4;
-    color: #c0392b;
-    border: 1px solid #f9c2c2;
+    background-color: var(--bg-danger-light);
+    color: var(--color-danger);
+    border: 1px solid var(--border-danger-light);
 }
 
 .screenshot-actions .btn-delete-img:hover {
-    background-color: #c0392b;
+    background-color: var(--color-danger);
     color: white;
-    border-color: #c0392b;
+    border-color: var(--color-danger);
 }
 
 /* Table Styles */
