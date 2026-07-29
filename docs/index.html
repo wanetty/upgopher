@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Upgopher — Share files and clipboard content in one binary</title>
+  <meta name="description" content="Turn any folder into a browser-based file and clipboard sharing server with one self-contained binary. No database, dependencies, or required configuration.">
+  <meta name="theme-color" content="#f3eddf">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Upgopher — One binary. Your files. Any browser.">
+  <meta property="og:description" content="Share files, folders, text, and screenshots between devices without a database or mandatory configuration.">
+  <meta property="og:url" content="https://wanetty.github.io/upgopher/">
+  <meta property="og:image" content="https://wanetty.github.io/upgopher/assets/file-manager.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://wanetty.github.io/upgopher/">
+  <link rel="icon" href="assets/favicon.ico">
+  <link rel="stylesheet" href="assets/site.css">
+  <script defer src="assets/site.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <nav class="nav" aria-label="Primary navigation">
+      <a class="brand" href="index.html"><img src="assets/logopher.webp" alt="">Upgopher</a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">Menu</button>
+      <div class="nav-links" id="nav-links">
+        <a href="#use-cases">Use cases</a>
+        <a href="#install">Install</a>
+        <a href="configuration.html">Docs</a>
+        <a href="https://github.com/wanetty/upgopher">GitHub ↗</a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="wrap hero">
+      <div>
+        <p class="eyebrow">Portable file sharing / v1.20.0</p>
+        <h1>One binary.<br>Your files.<br><em>Any browser.</em></h1>
+        <p class="hero-copy">Share files, folders, text, and screenshots between devices. No database, external runtime, or configuration file required.</p>
+        <div class="actions">
+          <a class="button" href="getting-started.html">Start in 60 seconds</a>
+          <a class="button secondary" href="https://github.com/wanetty/upgopher/releases/latest">Download release</a>
+        </div>
+      </div>
+      <figure class="hero-card">
+        <picture>
+          <source media="(prefers-reduced-motion: reduce)" srcset="assets/file-manager.png">
+          <img src="assets/upgopher-demo.gif" alt="Upgopher browser interface demonstrating file browsing, uploads, and the shared clipboard">
+        </picture>
+      </figure>
+    </section>
+
+    <aside class="proof-strip" aria-label="Project attributes">
+      <div class="wrap proof-list">
+        <div class="proof-item"><strong>1 binary</strong><span>UI and assets included</span></div>
+        <div class="proof-item"><strong>0 databases</strong><span>Nothing to migrate</span></div>
+        <div class="proof-item"><strong>3 operating systems</strong><span>Linux, macOS, Windows</span></div>
+        <div class="proof-item"><strong>MIT licensed</strong><span>Open and inspectable</span></div>
+      </div>
+    </aside>
+
+    <section class="section" id="use-cases">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-label">Use cases</p>
+            <h2>Small server.<br>Useful jobs.</h2>
+          </div>
+          <p class="section-intro">Upgopher sits between a read-only development server and a full storage platform: enough interface to be useful, little enough infrastructure to start and remove in minutes.</p>
+        </div>
+        <div class="use-grid">
+          <article class="card">
+            <span class="number">01 / LAN DROP</span>
+            <h3>Move files without a client</h3>
+            <p>Open one address from a phone, laptop, VM, or lab machine and start transferring.</p>
+          </article>
+          <article class="card">
+            <span class="number">02 / CLIPBOARD</span>
+            <h3>Bridge device clipboards</h3>
+            <p>Share text and screenshots through protected tabs when native clipboard sync is unavailable.</p>
+          </article>
+          <article class="card">
+            <span class="number">03 / DEVELOPMENT</span>
+            <h3>Expose a working directory</h3>
+            <p>Hand build output, logs, or test artifacts to another device with a single command.</p>
+          </article>
+          <article class="card">
+            <span class="number">04 / READ ONLY</span>
+            <h3>Open a download portal</h3>
+            <p>Keep navigation and downloads available while blocking uploads and deletions.</p>
+          </article>
+          <article class="card">
+            <span class="number">05 / HOMELAB</span>
+            <h3>Add a compact file drop</h3>
+            <p>Run it behind a VPN, tunnel, or reverse proxy without adding an application database.</p>
+          </article>
+          <article class="card">
+            <span class="number">06 / SUPPORT</span>
+            <h3>Collect or deliver artifacts</h3>
+            <p>Give a temporary browser UI to people who should not need a shell or transfer tool.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt" id="install">
+      <div class="wrap install-layout">
+        <div>
+          <p class="section-label">Install</p>
+          <h2>Pick a package.<br>Keep one process.</h2>
+          <p class="section-intro">Every method produces the same self-contained server. Package-manager repositories and container images are maintained by the project.</p>
+          <div class="actions">
+            <a class="button secondary" href="getting-started.html">All installation options</a>
+          </div>
+        </div>
+        <div class="terminal">
+          <div class="terminal-head"><i></i><span>installation / choose a platform</span></div>
+          <div style="padding: 1rem 1.4rem 0">
+            <div class="install-tabs" role="tablist" aria-label="Installation method">
+              <button class="install-tab" role="tab" aria-selected="true" aria-controls="install-brew">Homebrew</button>
+              <button class="install-tab" role="tab" aria-selected="false" aria-controls="install-scoop">Scoop</button>
+              <button class="install-tab" role="tab" aria-selected="false" aria-controls="install-docker">Docker</button>
+              <button class="install-tab" role="tab" aria-selected="false" aria-controls="install-go">Go</button>
+            </div>
+          </div>
+          <pre class="install-panel" id="install-brew"><span class="prompt">$</span> brew install --cask wanetty/tap/upgopher
+<span class="prompt">$</span> upgopher -dir ./shared</pre>
+          <pre class="install-panel" id="install-scoop" hidden><span class="prompt">&gt;</span> scoop bucket add wanetty https://github.com/wanetty/scoop-bucket
+<span class="prompt">&gt;</span> scoop install upgopher
+<span class="prompt">&gt;</span> upgopher -dir .\shared</pre>
+          <pre class="install-panel" id="install-docker" hidden><span class="prompt">$</span> docker run --rm -p 9090:9090 \
+  -v "$PWD:/data" wanetty/upgopher:1.20.0</pre>
+          <pre class="install-panel" id="install-go" hidden><span class="prompt">$</span> go install github.com/wanetty/upgopher@latest
+<span class="prompt">$</span> upgopher -dir ./shared</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-label">Interface</p>
+            <h2>A practical UI,<br>already inside.</h2>
+          </div>
+          <p class="section-intro">Browse folders, upload with progress, download selections as ZIP, search text files, and move clipboard content across screens.</p>
+        </div>
+        <div class="shot-grid">
+          <figure class="shot">
+            <img src="assets/file-manager.png" alt="Upgopher file manager showing files, upload controls, breadcrumbs, and file actions">
+            <figcaption>File manager / upload and browse</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="assets/clipboard.png" alt="Upgopher shared clipboard with tabs, text content, and screenshot sharing">
+            <figcaption>Shared clipboard / text and images</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="assets/directory-tree.png" alt="Upgopher directory tree panel with nested folders">
+            <figcaption>Directory tree / fast navigation</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="assets/mobile.png" alt="Upgopher file manager adapted to a narrow mobile viewport">
+            <figcaption>Responsive UI / phone viewport</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt" id="compare">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-label">Trade-offs</p>
+            <h2>Choose the tool<br>that fits the job.</h2>
+          </div>
+          <p class="section-intro">Upgopher optimizes for a useful browser interface with minimal setup. It is not trying to replace multi-user storage platforms or protocol-rich transfer servers.</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Tool</th><th>Setup</th><th>Strength</th><th>Choose it when…</th></tr>
+            </thead>
+            <tbody>
+              <tr class="highlight"><td>Upgopher</td><td>One binary</td><td>Files + shared clipboard</td><td>You want a practical browser UI without a database or config file.</td></tr>
+              <tr><td>python http.server</td><td>Python runtime</td><td>Read-only serving</td><td>You only need to expose local files briefly.</td></tr>
+              <tr><td>Dufs</td><td>One binary</td><td>WebDAV + resumable transfers</td><td>Transfer protocol support matters more than clipboard sharing.</td></tr>
+              <tr><td>File Browser</td><td>Persistent app state</td><td>Users + administration</td><td>You need accounts, roles, and a managed file portal.</td></tr>
+              <tr><td>Copyparty</td><td>Python / bundle</td><td>Protocols + advanced transfers</td><td>You need resumability, indexing, deduplication, or media features.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="actions">
+          <a class="button secondary" href="https://github.com/wanetty/upgopher#choosing-the-right-tool">Read the detailed comparison</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap cta">
+        <h2>Turn a folder into a sharing surface before the coffee cools.</h2>
+        <a class="button secondary" href="getting-started.html">Get started</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <p>Upgopher is open source under the MIT License.</p>
+      <p><a href="https://github.com/wanetty/upgopher">Source</a> · <a href="security.html">Security</a> · <a href="https://github.com/wanetty/upgopher/releases">Releases</a></p>
+    </div>
+  </footer>
+</body>
+</html>

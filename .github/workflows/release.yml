@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.24.x"
+          cache: false
+
+      - name: Test
+        run: go test ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISTRIBUTION_GITHUB_TOKEN: ${{ secrets.DISTRIBUTION_GITHUB_TOKEN }}
+
+      - name: Checkout Scoop bucket
+        uses: actions/checkout@v5
+        with:
+          repository: wanetty/scoop-bucket
+          token: ${{ secrets.DISTRIBUTION_GITHUB_TOKEN }}
+          path: scoop-bucket
+
+      - name: Add Scoop update metadata
+        run: go run ./scripts/enrich-scoop-manifest ./scoop-bucket/upgopher.json
+
+      - name: Publish Scoop update metadata
+        working-directory: scoop-bucket
+        run: |
+          if git diff --quiet -- upgopher.json; then
+            exit 0
+          fi
+          git config user.name upgopher-release
+          git config user.email noreply@upgopher.dev
+          git add upgopher.json
+          git commit -m "chore: add Upgopher update metadata"
+          git push

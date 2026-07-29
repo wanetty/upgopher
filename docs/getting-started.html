@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Getting started — Upgopher</title>
+  <meta name="description" content="Install Upgopher on macOS, Windows, Linux, or Docker and share your first directory.">
+  <meta name="theme-color" content="#f3eddf">
+  <link rel="canonical" href="https://wanetty.github.io/upgopher/getting-started.html">
+  <link rel="icon" href="assets/favicon.ico">
+  <link rel="stylesheet" href="assets/site.css">
+  <script defer src="assets/site.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <nav class="nav" aria-label="Primary navigation">
+      <a class="brand" href="index.html"><img src="assets/logopher.webp" alt="">Upgopher</a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">Menu</button>
+      <div class="nav-links" id="nav-links">
+        <a aria-current="page" href="getting-started.html">Get started</a>
+        <a href="configuration.html">Configuration</a>
+        <a href="security.html">Security</a>
+        <a href="https://github.com/wanetty/upgopher">GitHub ↗</a>
+      </div>
+    </nav>
+  </header>
+  <main id="main">
+    <section class="doc-hero">
+      <div class="wrap">
+        <p class="section-label">Documentation / 01</p>
+        <h1>Getting started</h1>
+        <p>Install one binary, choose a directory, and open the server from a browser.</p>
+      </div>
+    </section>
+    <div class="wrap doc-layout">
+      <aside class="toc">
+        <strong>On this page</strong>
+        <a href="#install">Install</a>
+        <a href="#first-run">First run</a>
+        <a href="#docker">Docker</a>
+        <a href="#verify">Verify downloads</a>
+        <a href="#next">Next steps</a>
+      </aside>
+      <article class="doc-content">
+        <h2 id="install">Install</h2>
+        <h3>macOS with Homebrew</h3>
+        <pre><code>brew install --cask wanetty/tap/upgopher</code></pre>
+        <h3>Windows with Scoop</h3>
+        <pre><code>scoop bucket add wanetty https://github.com/wanetty/scoop-bucket
+scoop install upgopher</code></pre>
+        <h3>Any supported OS with Go</h3>
+        <pre><code>go install github.com/wanetty/upgopher@latest</code></pre>
+        <p>Go places the executable in <code>$(go env GOPATH)/bin</code>. Make sure that directory is on your <code>PATH</code>.</p>
+        <h3>Release archive</h3>
+        <p>Download the archive for Linux, macOS, or Windows from <a href="https://github.com/wanetty/upgopher/releases/latest">the latest GitHub release</a>. Extract it and put the executable somewhere on your <code>PATH</code>.</p>
+
+        <h2 id="first-run">Share your first directory</h2>
+        <pre><code>mkdir shared
+upgopher -dir ./shared</code></pre>
+        <p>Open <a href="http://localhost:9090">http://localhost:9090</a>. Other devices on the same network can use your machine's LAN address, for example <code>http://192.168.1.20:9090</code>.</p>
+        <div class="callout"><strong>Network exposure:</strong> Upgopher listens on all interfaces. Add <code>-user</code> and <code>-pass</code>, or limit access with your network, VPN, firewall, or reverse proxy.</div>
+        <pre><code>upgopher -dir ./shared -user admin -pass 'choose-a-strong-password'</code></pre>
+
+        <h2 id="docker">Run with Docker</h2>
+        <pre><code>docker run --rm \
+  --name upgopher \
+  -p 9090:9090 \
+  -v "$PWD:/data" \
+  wanetty/upgopher:1.20.0</code></pre>
+        <p>The image runs as a non-root user and serves <code>/data</code>. Ensure that the mounted directory is readable and writable by UID/GID <code>65532</code>, or use <code>-readonly</code> with read permission only.</p>
+        <pre><code>docker run -d \
+  --name upgopher \
+  --restart unless-stopped \
+  -p 9090:9090 \
+  -v "/srv/share:/data" \
+  ghcr.io/wanetty/upgopher:1.20.0 \
+  -dir /data -user admin -pass 'choose-a-strong-password'</code></pre>
+        <p>Use an exact version tag for predictable deployments. Move to a newer version deliberately after reading its release notes.</p>
+
+        <h2 id="verify">Verify a downloaded archive</h2>
+        <p>Every release includes <code>checksums.txt</code>. Download it next to the archive and compare the SHA-256 digest.</p>
+        <h3>macOS or Linux</h3>
+        <pre><code>shasum -a 256 upgopher_1.20.0_darwin_arm64.tar.gz
+grep upgopher_1.20.0_darwin_arm64.tar.gz checksums.txt</code></pre>
+        <h3>Windows PowerShell</h3>
+        <pre><code>Get-FileHash .\upgopher_1.20.0_windows_amd64.zip -Algorithm SHA256
+Select-String upgopher_1.20.0_windows_amd64.zip .\checksums.txt</code></pre>
+
+        <h2 id="next">Next steps</h2>
+        <ul>
+          <li>Review all flags in the <a href="configuration.html">configuration reference</a>.</li>
+          <li>Read the <a href="security.html">security model and deployment guidance</a>.</li>
+          <li>Use <a href="troubleshooting.html">troubleshooting</a> if another device cannot connect or a container cannot write.</li>
+        </ul>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="wrap footer-inner"><p>Upgopher documentation</p><p><a href="index.html">Overview</a> · <a href="https://github.com/wanetty/upgopher">GitHub</a></p></div></footer>
+</body>
+</html>
