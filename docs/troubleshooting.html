@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Troubleshooting — Upgopher</title>
+  <meta name="description" content="Resolve common Upgopher connection, permission, upload, TLS, and Docker problems.">
+  <meta name="theme-color" content="#f3eddf">
+  <link rel="canonical" href="https://wanetty.github.io/upgopher/troubleshooting.html">
+  <link rel="icon" href="assets/favicon.ico">
+  <link rel="stylesheet" href="assets/site.css">
+  <script defer src="assets/site.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <nav class="nav" aria-label="Primary navigation">
+      <a class="brand" href="index.html"><img src="assets/logopher.webp" alt="">Upgopher</a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">Menu</button>
+      <div class="nav-links" id="nav-links">
+        <a href="getting-started.html">Get started</a>
+        <a href="configuration.html">Configuration</a>
+        <a href="security.html">Security</a>
+        <a href="https://github.com/wanetty/upgopher">GitHub ↗</a>
+      </div>
+    </nav>
+  </header>
+  <main id="main">
+    <section class="doc-hero"><div class="wrap"><p class="section-label">Documentation / 04</p><h1>Troubleshooting</h1><p>Start with the process, then the local browser, then the network boundary.</p></div></section>
+    <div class="wrap doc-layout">
+      <aside class="toc">
+        <strong>On this page</strong>
+        <a href="#connect">Cannot connect</a>
+        <a href="#permissions">Permission denied</a>
+        <a href="#uploads">Uploads fail</a>
+        <a href="#tls">TLS warnings</a>
+        <a href="#auth">Authentication loops</a>
+        <a href="#diagnostics">Diagnostics</a>
+      </aside>
+      <article class="doc-content">
+        <h2 id="connect">Another device cannot connect</h2>
+        <ol>
+          <li>Confirm the server is running and note the port in its log.</li>
+          <li>Open <code>http://localhost:9090</code> on the host itself.</li>
+          <li>Find the host's LAN address and open <code>http://LAN-IP:9090</code> from the other device.</li>
+          <li>Allow inbound TCP traffic for that port in the host firewall.</li>
+          <li>Confirm both devices can route to each other; guest Wi-Fi often isolates clients.</li>
+        </ol>
+        <p>When <code>-ssl</code> is enabled, use <code>https://</code>. Its default port becomes 443 unless <code>-port</code> was explicitly supplied.</p>
+
+        <h2 id="permissions">Uploads or ZIP downloads report permission errors</h2>
+        <p>The process needs read access to shared files, write access for uploads and mutations, and write access to the operating system temporary directory for ZIP creation.</p>
+        <h3>Docker bind mounts</h3>
+        <p>The project image runs as UID/GID <code>65532</code>. Grant that identity appropriate access to the host directory, or run the container in read-only mode with readable files.</p>
+        <pre><code>sudo chown -R 65532:65532 /srv/share</code></pre>
+        <p>Choose permissions that match your host's ownership model; do not make a sensitive directory world-writable just to bypass the error.</p>
+
+        <h2 id="uploads">Large uploads stop early</h2>
+        <p>Check <code>-max-upload-size</code>, reverse-proxy limits, tunnel limits, available disk space, and request timeouts. For slow large transfers, increase or disable the overall read and write timeouts:</p>
+        <pre><code>upgopher -read-timeout 0 -write-timeout 0</code></pre>
+        <p>Upgopher does not implement resumable uploads. An interrupted upload must be restarted.</p>
+
+        <h2 id="tls">The browser warns about the certificate</h2>
+        <p>This is expected when using <code>-ssl</code> without <code>-cert</code> and <code>-key</code>. The generated certificate is self-signed. For trusted access, provide a certificate trusted by your devices or terminate TLS at a reverse proxy.</p>
+
+        <h2 id="auth">The login prompt repeats</h2>
+        <p>Confirm both <code>-user</code> and <code>-pass</code> are present, credentials are entered exactly, and a reverse proxy is forwarding the <code>Authorization</code> header. Try a private browser window after changing credentials to avoid cached Basic Auth state.</p>
+
+        <h2 id="diagnostics">Collect diagnostics</h2>
+        <pre><code>upgopher -h
+go version
+uname -a   # macOS or Linux</code></pre>
+        <p>When opening an issue, include the Upgopher version, operating system and architecture, exact command with passwords removed, expected behavior, and sanitized logs. Never publish credentials or absolute paths containing private information.</p>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="wrap footer-inner"><p>Upgopher documentation</p><p><a href="index.html">Overview</a> · <a href="https://github.com/wanetty/upgopher/issues">Issues</a></p></div></footer>
+</body>
+</html>

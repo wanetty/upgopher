@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Security — Upgopher</title>
+  <meta name="description" content="Understand Upgopher's security model, deployment boundaries, authentication, TLS, and reporting process.">
+  <meta name="theme-color" content="#f3eddf">
+  <link rel="canonical" href="https://wanetty.github.io/upgopher/security.html">
+  <link rel="icon" href="assets/favicon.ico">
+  <link rel="stylesheet" href="assets/site.css">
+  <script defer src="assets/site.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <nav class="nav" aria-label="Primary navigation">
+      <a class="brand" href="index.html"><img src="assets/logopher.webp" alt="">Upgopher</a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">Menu</button>
+      <div class="nav-links" id="nav-links">
+        <a href="getting-started.html">Get started</a>
+        <a href="configuration.html">Configuration</a>
+        <a aria-current="page" href="security.html">Security</a>
+        <a href="https://github.com/wanetty/upgopher">GitHub ↗</a>
+      </div>
+    </nav>
+  </header>
+  <main id="main">
+    <section class="doc-hero"><div class="wrap"><p class="section-label">Documentation / 03</p><h1>Security</h1><p>Upgopher provides useful controls, but the network and host remain part of the security boundary.</p></div></section>
+    <div class="wrap doc-layout">
+      <aside class="toc">
+        <strong>On this page</strong>
+        <a href="#model">Security model</a>
+        <a href="#exposure">Network exposure</a>
+        <a href="#auth">Authentication</a>
+        <a href="#tls">TLS</a>
+        <a href="#readonly">Read only</a>
+        <a href="#data">Ephemeral state</a>
+        <a href="#report">Report a vulnerability</a>
+      </aside>
+      <article class="doc-content">
+        <h2 id="model">Security model</h2>
+        <p>Upgopher shares one configured directory through HTTP. Filesystem operations validate that resolved paths stay within that directory, user paths in URLs remain encoded, and the application does not intentionally expose absolute host paths in browser-facing errors.</p>
+        <p>All application routes can be wrapped in one optional Basic Auth credential pair. This is suitable for small trusted deployments, not for multi-tenant authorization.</p>
+
+        <h2 id="exposure">Network exposure</h2>
+        <div class="callout"><strong>Default:</strong> the server binds to <code>0.0.0.0</code>. Without Basic Auth, anyone who can reach the port can use the enabled operations.</div>
+        <p>For LAN use, apply host firewall rules if the network includes untrusted devices. For remote access, prefer a private VPN or a reverse proxy with trusted TLS and additional access controls. Do not assume an obscure port provides protection.</p>
+
+        <h2 id="auth">Basic authentication</h2>
+        <pre><code>upgopher -user admin -pass 'a-long-unique-password'</code></pre>
+        <p>Both flags are required. The credential protects the application globally and is sent by the browser on requests after login. Basic Auth requires TLS when traffic crosses an untrusted network.</p>
+        <p>Secrets supplied as command arguments may be visible to other privileged users through process inspection. Use host-level isolation appropriate for your environment.</p>
+
+        <h2 id="tls">TLS options</h2>
+        <pre><code># Local testing; clients will show a trust warning
+upgopher -ssl
+
+# Existing trusted certificate and key
+upgopher -ssl -cert /run/secrets/fullchain.pem -key /run/secrets/privkey.pem</code></pre>
+        <p>The automatically generated certificate is self-signed, in memory, and recreated on restart. It encrypts traffic but does not establish a trusted identity. Public deployments should use a trusted certificate, commonly through a reverse proxy.</p>
+
+        <h2 id="readonly">Read-only mode</h2>
+        <pre><code>upgopher -dir /srv/public -readonly</code></pre>
+        <p>Read-only mode blocks mutating operations exposed by Upgopher. It does not modify filesystem permissions or prevent another process on the host from changing files. Defense in depth means also mounting or granting the directory read-only when practical.</p>
+
+        <h2 id="data">State and retention</h2>
+        <p>Uploaded files remain in the shared directory. Clipboard text, clipboard images, clipboard tab metadata, and custom path aliases are process memory and disappear when Upgopher restarts. Clipboard content should therefore be treated as temporary, not durable or encrypted storage.</p>
+        <p>Temporary ZIP files are created in the operating system temporary directory while downloads are assembled and are removed after serving.</p>
+
+        <h2 id="report">Report a vulnerability</h2>
+        <p>Contact <a href="https://twitter.com/gm_eduard">@gm_eduard</a> privately with the affected version, reproduction steps, impact, and any suggested remediation. Please do not open a public issue before coordinating disclosure.</p>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="wrap footer-inner"><p>Upgopher documentation</p><p><a href="index.html">Overview</a> · <a href="https://github.com/wanetty/upgopher/blob/main/LICENSE">MIT License</a></p></div></footer>
+</body>
+</html>

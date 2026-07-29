@@ -5,6 +5,7 @@
 *.so
 *.dylib
 upgopher
+dist/
 # Test binary, built with `go test -c`
 *.test
 
@@ -16,5 +17,4 @@ upgopher
 # Dependency directories (remove the comment below to include it)
 # vendor/
 uploads/
-.github/*
-.agents/*
+.agents/

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Configuration reference — Upgopher</title>
+  <meta name="description" content="Complete command-line flag and configuration reference for Upgopher.">
+  <meta name="theme-color" content="#f3eddf">
+  <link rel="canonical" href="https://wanetty.github.io/upgopher/configuration.html">
+  <link rel="icon" href="assets/favicon.ico">
+  <link rel="stylesheet" href="assets/site.css">
+  <script defer src="assets/site.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <nav class="nav" aria-label="Primary navigation">
+      <a class="brand" href="index.html"><img src="assets/logopher.webp" alt="">Upgopher</a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">Menu</button>
+      <div class="nav-links" id="nav-links">
+        <a href="getting-started.html">Get started</a>
+        <a aria-current="page" href="configuration.html">Configuration</a>
+        <a href="security.html">Security</a>
+        <a href="https://github.com/wanetty/upgopher">GitHub ↗</a>
+      </div>
+    </nav>
+  </header>
+  <main id="main">
+    <section class="doc-hero"><div class="wrap"><p class="section-label">Documentation / 02</p><h1>Configuration</h1><p>Upgopher is configured entirely with command-line flags. No configuration file is required.</p></div></section>
+    <div class="wrap doc-layout">
+      <aside class="toc">
+        <strong>On this page</strong>
+        <a href="#files">Files and port</a>
+        <a href="#access">Access controls</a>
+        <a href="#tls">HTTPS</a>
+        <a href="#limits">Limits and timeouts</a>
+        <a href="#reference">Flag reference</a>
+      </aside>
+      <article class="doc-content">
+        <h2 id="files">Files and port</h2>
+        <pre><code>upgopher -dir ./shared -port 8080</code></pre>
+        <p><code>-dir</code> selects the shared directory and defaults to <code>./uploads</code>. The directory is created when it does not exist. <code>-port</code> defaults to <code>9090</code>, or <code>443</code> when <code>-ssl</code> is explicitly enabled without a custom port.</p>
+
+        <h2 id="access">Access controls</h2>
+        <h3>Basic Auth</h3>
+        <pre><code>upgopher -user admin -pass 'choose-a-strong-password'</code></pre>
+        <p>Both flags are required together. Authentication covers the registered application routes globally; Upgopher does not provide multiple accounts or per-folder roles.</p>
+        <h3>Read-only mode</h3>
+        <pre><code>upgopher -dir ./public -readonly</code></pre>
+        <p>Disables uploads, file and directory deletion, and directory creation through the application while retaining browsing and downloads.</p>
+        <h3>Hidden files</h3>
+        <pre><code>upgopher -disable-hidden-files</code></pre>
+        <p>Removes the UI control for showing hidden files and keeps them out of listings.</p>
+
+        <h2 id="tls">HTTPS</h2>
+        <h3>Self-signed certificate</h3>
+        <pre><code>upgopher -ssl</code></pre>
+        <p>A new in-memory self-signed certificate is generated at startup. Browsers will warn because it is not signed by a trusted certificate authority.</p>
+        <h3>Custom certificate</h3>
+        <pre><code>upgopher -ssl -cert /path/to/cert.pem -key /path/to/key.pem</code></pre>
+        <p>Provide both certificate and private key. For public deployments, a reverse proxy that manages trusted certificates is usually easier to operate.</p>
+
+        <h2 id="limits">Limits and timeouts</h2>
+        <pre><code>upgopher \
+  -max-upload-size 1 \
+  -max-tabs 5 \
+  -read-header-timeout 10s \
+  -read-timeout 30m \
+  -write-timeout 30m</code></pre>
+        <p>Upload size is expressed in GiB; zero means unlimited. Read and write timeout values use Go duration syntax such as <code>30s</code>, <code>5m</code>, or <code>1h</code>. Zero disables the respective overall timeout.</p>
+
+        <h2 id="reference">Flag reference</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Flag</th><th>Default</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td><code>-dir</code></td><td><code>./uploads</code></td><td>Directory to share.</td></tr>
+              <tr><td><code>-port</code></td><td><code>9090</code></td><td>TCP port; defaults to 443 when only <code>-ssl</code> changes it.</td></tr>
+              <tr><td><code>-user</code></td><td>empty</td><td>Basic Auth username; requires <code>-pass</code>.</td></tr>
+              <tr><td><code>-pass</code></td><td>empty</td><td>Basic Auth password; requires <code>-user</code>.</td></tr>
+              <tr><td><code>-ssl</code></td><td>false</td><td>Enable HTTPS.</td></tr>
+              <tr><td><code>-cert</code></td><td>empty</td><td>PEM certificate path for HTTPS.</td></tr>
+              <tr><td><code>-key</code></td><td>empty</td><td>PEM private key path for HTTPS.</td></tr>
+              <tr><td><code>-readonly</code></td><td>false</td><td>Disable application upload, create, and delete operations.</td></tr>
+              <tr><td><code>-disable-hidden-files</code></td><td>false</td><td>Keep hidden files out of the UI.</td></tr>
+              <tr><td><code>-max-upload-size</code></td><td><code>0</code></td><td>Maximum upload size in GiB; zero is unlimited.</td></tr>
+              <tr><td><code>-max-tabs</code></td><td><code>10</code></td><td>Maximum shared clipboard tabs.</td></tr>
+              <tr><td><code>-read-header-timeout</code></td><td><code>10s</code></td><td>Maximum time to read request headers.</td></tr>
+              <tr><td><code>-read-timeout</code></td><td><code>0</code></td><td>Maximum time to read a complete request; zero is unlimited.</td></tr>
+              <tr><td><code>-write-timeout</code></td><td><code>0</code></td><td>Maximum response write duration; zero is unlimited.</td></tr>
+              <tr><td><code>-q</code></td><td>false</td><td>Quiet mode.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The executable remains the source of truth. Run <code>upgopher -h</code> to inspect the flags in your installed version.</p>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="wrap footer-inner"><p>Upgopher documentation</p><p><a href="index.html">Overview</a> · <a href="troubleshooting.html">Troubleshooting</a></p></div></footer>
+</body>
+</html>

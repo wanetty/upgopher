@@ -1,0 +1,12 @@
+.git
+.github
+.claude
+.agents
+.codex
+docs
+scripts
+uploads
+upgopher
+coverage.out
+*.log
+.DS_Store
