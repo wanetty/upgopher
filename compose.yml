@@ -1,0 +1,12 @@
+services:
+  upgopher:
+    image: ghcr.io/wanetty/upgopher:latest
+    container_name: upgopher
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - upgopher_data:/data
+
+volumes:
+   upgopher_data:
