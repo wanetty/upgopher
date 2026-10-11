@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -9,6 +10,7 @@ import (
 	"crypto/x509/pkix"
 	"embed"
 	"encoding/pem"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -16,7 +18,9 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/wanetty/upgopher/internal/server"
@@ -50,6 +54,7 @@ func main() {
 	disableHiddenFilesarg := flag.Bool("disable-hidden-files", false, "disable showing hidden files")
 	readOnlyarg := flag.Bool("readonly", false, "readonly mode (disable upload and delete operations)")
 	maxTabs := flag.Int("max-tabs", 10, "maximum number of shared clipboard tabs")
+	encryptTransfers := flag.Bool("encrypt-transfers", false, "encrypt file transfers in the browser (requires HTTPS or localhost; protects against passive tunnel observers only)")
 	maxUploadSizeGB := flag.Int64("max-upload-size", 0, "maximum upload size in GB (0 means unlimited)")
 	readTimeout := flag.Duration("read-timeout", 0, "server read timeout (0 means unlimited)")
 	readHeaderTimeout := flag.Duration("read-header-timeout", 10*time.Second, "server read header timeout")
@@ -91,7 +96,7 @@ func main() {
 	}
 
 	// Setup all routes using centralized router
-	server.SetupRoutes(
+	cleanupTransfers, err := server.SetupRoutes(
 		*dir,
 		*user,
 		*pass,
@@ -105,16 +110,25 @@ func main() {
 		&customPathsMutex,
 		&favicon,
 		&logo,
+		*encryptTransfers,
 	)
+	if err != nil {
+		log.Fatalf("Failed to initialize server: %v", err)
+	}
+	defer cleanupTransfers()
 
 	if !isFlagPassed("port") && *useTLS {
 		*port = 443
 	}
 	addr := fmt.Sprintf("0.0.0.0:%d", *port)
-	startServer(addr, *useTLS, *certFile, *keyFile, *readTimeout, *readHeaderTimeout, *writeTimeout)
+	err = startServer(addr, *useTLS, *certFile, *keyFile, *readTimeout, *readHeaderTimeout, *writeTimeout)
+	cleanupTransfers()
+	if err != nil {
+		log.Fatalf("Server stopped: %v", err)
+	}
 }
 
-func startServer(addr string, useTLS bool, certFile, keyFile string, readTimeout time.Duration, readHeaderTimeout time.Duration, writeTimeout time.Duration) {
+func startServer(addr string, useTLS bool, certFile, keyFile string, readTimeout time.Duration, readHeaderTimeout time.Duration, writeTimeout time.Duration) error {
 	if useTLS {
 		var cert tls.Certificate
 		var err error
@@ -122,18 +136,18 @@ func startServer(addr string, useTLS bool, certFile, keyFile string, readTimeout
 		if certFile != "" && keyFile != "" {
 			cert, err = tls.LoadX509KeyPair(certFile, keyFile)
 			if err != nil {
-				log.Fatalf("Failed to load certificate and key pair: %v", err)
+				return fmt.Errorf("load certificate and key pair: %w", err)
 			}
 		} else {
 			log.Println("No certificate or key file provided, generating a self-signed certificate.")
 			certPEM, keyPEM, err := generateSelfSignedCert()
 			if err != nil {
-				log.Fatalf("Failed to generate self-signed certificate: %v", err)
+				return fmt.Errorf("generate certificate: %w", err)
 			}
 
 			cert, err = tls.X509KeyPair(certPEM, keyPEM)
 			if err != nil {
-				log.Fatalf("Failed to create key pair from generated self-signed certificate: %v", err)
+				return fmt.Errorf("create certificate key pair: %w", err)
 			}
 		}
 
@@ -151,9 +165,7 @@ func startServer(addr string, useTLS bool, certFile, keyFile string, readTimeout
 		if !quiet {
 			log.Printf("[%s] Starting HTTPS server on %s", time.Now().Format("2006-01-02 15:04:05"), addr)
 		}
-		if err := server.ListenAndServeTLS("", ""); err != nil {
-			log.Fatalf("Error starting HTTPS server: %v", err)
-		}
+		return serveUntilSignal(server, true)
 	} else {
 		server := &http.Server{
 			Addr:              addr,
@@ -166,10 +178,40 @@ func startServer(addr string, useTLS bool, certFile, keyFile string, readTimeout
 		if !quiet {
 			log.Printf("[%s] Starting HTTP server on %s", time.Now().Format("2006-01-02 15:04:05"), addr)
 		}
-		if err := server.ListenAndServe(); err != nil {
-			log.Fatalf("Error starting HTTP server: %v", err)
-		}
+		return serveUntilSignal(server, false)
 	}
+}
+
+// serveUntilSignal lets encrypted staging files be cleaned on ordinary exit.
+func serveUntilSignal(s *http.Server, useTLS bool) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	done := make(chan struct{})
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		select {
+		case <-ctx.Done():
+			shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := s.Shutdown(shutdown); err != nil {
+				_ = s.Close()
+			}
+		case <-done:
+		}
+	}()
+	var err error
+	if useTLS {
+		err = s.ListenAndServeTLS("", "")
+	} else {
+		err = s.ListenAndServe()
+	}
+	close(done)
+	<-stopped
+	if errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+	return err
 }
 
 func generateSelfSignedCert() ([]byte, []byte, error) {

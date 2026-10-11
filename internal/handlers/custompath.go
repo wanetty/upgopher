@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"path/filepath"
@@ -81,6 +82,12 @@ func (cph *CustomPathHandler) Handle() http.HandlerFunc {
 			log.Printf("[%s] Custom path created: %s -> %s\n", time.Now().Format("2006-01-02 15:04:05"), customPath, originalPath)
 		}
 
+		if r.Header.Get("Accept") == "application/json" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+			return
+		}
 		http.Redirect(w, r, "/"+customPath, http.StatusSeeOther)
 	}
 }

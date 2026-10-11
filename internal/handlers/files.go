@@ -28,6 +28,7 @@ var validFolderName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // FileHandlers manages file-related HTTP handlers
 type FileHandlers struct {
+	EncryptTransfers   bool
 	Dir                string
 	Quiet              bool
 	DisableHiddenFiles bool
@@ -745,7 +746,7 @@ func (fh *FileHandlers) handleGetRequest(w http.ResponseWriter, _ *http.Request,
 		return
 	}
 	downloadButton := templates.CreateZipButton(currentPath)
-	w.Write([]byte(statics.GetTemplates(table, currentPath, downloadButton, fh.DisableHiddenFiles, fh.ReadOnly)))
+	w.Write([]byte(statics.GetTemplates(table, currentPath, downloadButton, fh.DisableHiddenFiles, fh.ReadOnly, fh.EncryptTransfers)))
 }
 
 // handlePostRequest handles file upload

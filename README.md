@@ -113,6 +113,10 @@ upgopher -dir ./public -readonly
 # Built-in HTTPS with an ephemeral self-signed certificate
 upgopher -dir ./shared -ssl
 
+# Encrypt file content before it crosses an HTTPS tunnel
+upgopher -dir ./shared -encrypt-transfers -user admin -pass 'choose-a-strong-password'
+# In another terminal: cloudflared tunnel --url http://localhost:9090
+
 # Custom port and a 1 GiB upload limit
 upgopher -dir ./shared -port 8080 -max-upload-size 1
 ```
@@ -126,6 +130,23 @@ Read the full [configuration reference](https://wanetty.github.io/upgopher/confi
 - Prefer a VPN or a reverse proxy with trusted TLS for internet-facing use.
 - `-ssl` without `-cert` and `-key` creates a new self-signed certificate at
   startup; clients will not trust it automatically.
+- `-encrypt-transfers` adds browser-to-server application encryption to uploads,
+  downloads, ZIPs, file previews/search results, and shared images. It requires
+  HTTPS or localhost. The server stores normal, decrypted files; names, paths,
+  sizes, and transfer timing remain observable. Clipboard text is outside its scope.
+- Transfer encryption protects against **passive** tunnel observers. A provider
+  that modifies the delivered HTML/JavaScript can steal files or keys; the
+  fingerprint shown by that page does not fix this trust boundary. This mode
+  is not a guarantee against an active intermediary, including one that
+  reuses observed access credentials to act as another authorized client.
+- Encrypted shared links open a browser download page. Direct file embedding,
+  plain multipart clients such as `curl -F`, and native plaintext downloads are
+  unavailable in this mode. Without the flag, existing behavior is preserved.
+- Downloads use direct disk writing when supported. Otherwise encrypted
+  downloads are limited to 256 MiB per operation, including ZIPs. Requests are
+  staged in a private temporary directory; allow disk space for an upload copy
+  and encrypted response copies. Interrupted transfers expire after 15 minutes;
+  ordinary shutdown cleans staging files. A forced kill can leave temporary files.
 - Basic Auth is global. Upgopher does not provide separate user accounts or
   per-folder permissions.
 - Clipboard data and custom path aliases are held in memory and disappear when

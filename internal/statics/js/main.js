@@ -717,6 +717,8 @@ function uploadFiles(fileItems, emptyDirs) {
 
     showUploadProgress();
 
+    if (window.upgopherEncrypted) { UpgopherCrypto.upload(formData, '/' + window.location.search); return; }
+
     var xhr = new XMLHttpRequest();
 
     xhr.upload.addEventListener('progress', function(e) {
@@ -811,6 +813,7 @@ function createCustomPath() {
     fetch('/custom-path', {
         method: 'POST',
         headers: {
+            'Accept': 'application/json',
             'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: 'originalPath=' + encodeURIComponent(originalPath) + '&customPath=' + encodeURIComponent(customPath)
@@ -1204,6 +1207,11 @@ function downloadSelected() {
     var selected = getSelectedFiles();
     if (selected.length === 0) {
         showToast('No items selected', 'error');
+        return;
+    }
+
+    if (window.upgopherEncrypted) {
+        UpgopherCrypto.download('/zip-selected', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({paths:selected})}).catch(function(error){showToast(error.message,'error');});
         return;
     }
 
@@ -2362,3 +2370,12 @@ function updateThemeIcon(theme) {
         });
     }
 })();
+
+// Download buttons also support the application-layer encrypted transport.
+function downloadFile(url) {
+    if (window.upgopherEncrypted) {
+        UpgopherCrypto.download(url).catch(function(error) {
+            if (error.name !== 'AbortError') showToast(error.message, 'error');
+        });
+    } else { window.location.href = url; }
+}

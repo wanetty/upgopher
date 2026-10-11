@@ -830,6 +830,19 @@ td a:hover {
     padding: 15px;
 }
 
+/* Transfer status must remain readable on narrow screens. */
+.transfer-notice {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-family: inherit;
+    line-height: 1.5;
+    color: var(--text-primary);
+}
+
+.transfer-notice p {
+    margin: 8px 0 12px;
+}
+
 .line-number {
     color: var(--text-line-number);
     display: inline-block;
