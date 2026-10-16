@@ -22,6 +22,34 @@
   </picture>
 </p>
 
+## Important update · v1.21.0: encrypted file transfers
+
+Upgopher can now encrypt file content **in your browser before it travels
+through ngrok, Cloudflare Tunnel, trycloudflare, or another HTTP/HTTPS proxy**.
+The destination decrypts uploads automatically; downloads are decrypted in the
+browser. Enable it with one flag, using the same browser interface and tunnel URL:
+
+```bash
+upgopher -dir ./shared -encrypt-transfers -user admin -pass 'choose-a-strong-password'
+```
+
+Uploads, downloads, ZIP archives, text previews, search excerpts, and shared
+images all use the encrypted transport. It adds application-layer encryption
+alongside HTTPS, using AES-256-GCM and RSA-OAEP, with no extra dependencies.
+
+**Available for testing on `dev`; stable release publication follows the merge
+into `main`.** To try v1.21.0 from source:
+
+```bash
+git clone --branch dev https://github.com/wanetty/upgopher.git
+cd upgopher
+make build
+./upgopher -dir ./shared -encrypt-transfers -user admin -pass 'choose-a-strong-password'
+```
+
+Read the [encrypted-transfer guide](https://github.com/wanetty/upgopher/blob/dev/docs/security.html)
+and the [v1.21.0 release notes](.github/release-notes/v1.21.0.md).
+
 ## Start sharing in three steps
 
 ```bash
@@ -77,8 +105,8 @@ directory tree.
 for text and screenshots.
 
 **Controls:** optional Basic Auth, built-in HTTPS with a self-signed or custom
-certificate, read-only mode, hidden-file controls, upload limits, and server
-timeouts.
+certificate, read-only mode, hidden-file controls, upload limits, server
+timeouts, and optional browser-to-server file encryption.
 
 Everything required by the UI is embedded in the binary. Upgopher uses only the
 Go standard library and does not require a database or configuration file.
@@ -131,22 +159,13 @@ Read the full [configuration reference](https://wanetty.github.io/upgopher/confi
 - `-ssl` without `-cert` and `-key` creates a new self-signed certificate at
   startup; clients will not trust it automatically.
 - `-encrypt-transfers` adds browser-to-server application encryption to uploads,
-  downloads, ZIPs, file previews/search results, and shared images. It requires
-  HTTPS or localhost. The server stores normal, decrypted files; names, paths,
-  sizes, and transfer timing remain observable. Clipboard text is outside its scope.
-- Transfer encryption protects against **passive** tunnel observers. A provider
-  that modifies the delivered HTML/JavaScript can steal files or keys; the
-  fingerprint shown by that page does not fix this trust boundary. This mode
-  is not a guarantee against an active intermediary, including one that
-  reuses observed access credentials to act as another authorized client.
-- Encrypted shared links open a browser download page. Direct file embedding,
-  plain multipart clients such as `curl -F`, and native plaintext downloads are
-  unavailable in this mode. Without the flag, existing behavior is preserved.
-- Downloads use direct disk writing when supported. Otherwise encrypted
-  downloads are limited to 256 MiB per operation, including ZIPs. Requests are
-  staged in a private temporary directory; allow disk space for an upload copy
-  and encrypted response copies. Interrupted transfers expire after 15 minutes;
-  ordinary shutdown cleans staging files. A forced kill can leave temporary files.
+  downloads, ZIPs, file previews/search results, and shared images. Open the HTTPS
+  tunnel URL or localhost in a browser with Web Crypto to use it.
+- The browser and server encrypt file content with AES-256-GCM and exchange
+  protected transfer keys using RSA-OAEP. Shared links handle decryption through
+  a browser download page. Uploaded files are saved in their original format.
+- Encrypted transfers include upload progress, cancellation, automatic temporary
+  transfer cleanup, and direct-to-disk downloads in supported browsers.
 - Basic Auth is global. Upgopher does not provide separate user accounts or
   per-folder permissions.
 - Clipboard data and custom path aliases are held in memory and disappear when

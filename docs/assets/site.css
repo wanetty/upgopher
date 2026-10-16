@@ -714,3 +714,41 @@ tr.highlight td {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Release announcement shares the site's green and paper palette. */
+.release-update {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: clamp(1.5rem, 4vw, 4rem);
+  margin-bottom: 4rem;
+  padding: clamp(1.5rem, 4vw, 3rem);
+  border: 1px solid var(--signal);
+  border-top: 5px solid var(--signal);
+  border-radius: 16px;
+  background: var(--paper-deep);
+  scroll-margin-top: 90px;
+}
+.release-update h2 { margin: 0 0 1rem; }
+.update-details { align-self: center; min-width: 0; }
+.update-details pre {
+  padding: 1.25rem;
+  overflow-x: auto;
+  border-radius: 10px;
+  background: var(--ink);
+  color: var(--white);
+  font-size: 0.9rem;
+  line-height: 1.8;
+}
+.update-badge {
+  display: inline-block;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--signal);
+  border-radius: 6px;
+  color: var(--signal-dark);
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+.update-status { color: var(--ink-soft); font-size: 0.9rem; }
+@media (max-width: 760px) {
+  .release-update { grid-template-columns: 1fr; margin-bottom: 2.5rem; }
+}
