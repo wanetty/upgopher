@@ -10,8 +10,7 @@ its release tag; pushing `dev` alone does not publish the website or packages.
       `node scripts/test-encrypted-transfers.mjs http://localhost:19090`
       against a disposable instance started with `-encrypt-transfers`.
 - [ ] Check ordinary mode with the encryption flag absent.
-- [ ] Update stable installation examples in README and `docs/` to `1.21.0`
-      when the corresponding public artifacts are available.
+- [ ] Confirm README and `docs/` installation examples match the `1.21.0` artifacts.
 - [ ] `goreleaser check` passes with the current GoReleaser v2.
 - [ ] `scripts/check-community-scripts-contract.sh` passes against a release
       snapshot, preserving the Linux `amd64`/`arm64` archive names and embedded

@@ -36,7 +36,7 @@
   <main id="main">
     <section class="wrap hero">
       <div>
-        <p class="eyebrow">Portable file sharing / v1.21.0 preview</p>
+        <p class="eyebrow">Portable file sharing / v1.21.0</p>
         <h1>One binary.<br>Your files.<br><em>Any browser.</em></h1>
         <p class="hero-copy">Share files, folders, text, and screenshots between devices. No database, external runtime, or configuration file required.</p>
         <div class="actions">
@@ -60,7 +60,7 @@
         <p>Uploads are decrypted at your server. Downloads are decrypted in your browser. One flag enables the encrypted transport for files, ZIPs, previews, search excerpts, and shared images.</p>
         <div class="actions">
           <a class="button" href="security.html#transfers">Explore encrypted transfers</a>
-          <a class="button secondary" href="https://github.com/wanetty/upgopher/tree/dev">Try v1.21 on dev ↗</a>
+          <a class="button secondary" href="https://github.com/wanetty/upgopher/releases/tag/v1.21.0">Get v1.21 ↗</a>
         </div>
       </div>
       <div class="update-details">
@@ -70,7 +70,7 @@
   -encrypt-transfers \
   -user admin -pass 'your-password'</code></pre>
         <p>AES-256-GCM · RSA-OAEP · No extra dependencies</p>
-        <p class="update-status">Available for testing on <code>dev</code>. Stable release publication follows the merge into <code>main</code>.</p>
+        <p class="update-status">Add <code>-encrypt-transfers</code> to your existing command to enable it.</p>
       </div>
     </section>
 
@@ -153,7 +153,7 @@
 <span class="prompt">&gt;</span> scoop install upgopher
 <span class="prompt">&gt;</span> upgopher -dir .\shared</pre>
           <pre class="install-panel" id="install-docker" hidden><span class="prompt">$</span> docker run --rm -p 9090:9090 \
-  -v "$PWD:/data" wanetty/upgopher:1.20.0</pre>
+  -v "$PWD:/data" wanetty/upgopher:1.21.0</pre>
           <pre class="install-panel" id="install-go" hidden><span class="prompt">$</span> go install github.com/wanetty/upgopher@latest
 <span class="prompt">$</span> upgopher -dir ./shared</pre>
         </div>

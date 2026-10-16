@@ -37,18 +37,8 @@ Uploads, downloads, ZIP archives, text previews, search excerpts, and shared
 images all use the encrypted transport. It adds application-layer encryption
 alongside HTTPS, using AES-256-GCM and RSA-OAEP, with no extra dependencies.
 
-**Available for testing on `dev`; stable release publication follows the merge
-into `main`.** To try v1.21.0 from source:
-
-```bash
-git clone --branch dev https://github.com/wanetty/upgopher.git
-cd upgopher
-make build
-./upgopher -dir ./shared -encrypt-transfers -user admin -pass 'choose-a-strong-password'
-```
-
-Read the [encrypted-transfer guide](https://github.com/wanetty/upgopher/blob/dev/docs/security.html)
-and the [v1.21.0 release notes](.github/release-notes/v1.21.0.md).
+Read the [encrypted-transfer guide](https://wanetty.github.io/upgopher/security.html#transfers)
+and the [v1.21.0 release notes](https://github.com/wanetty/upgopher/releases/tag/v1.21.0).
 
 ## Start sharing in three steps
 
@@ -72,7 +62,7 @@ your machine.
 | --- | --- |
 | Homebrew | `brew install --cask wanetty/tap/upgopher` |
 | Scoop | `scoop bucket add wanetty https://github.com/wanetty/scoop-bucket` then `scoop install upgopher` |
-| Docker | `docker run --rm -p 9090:9090 -v "$PWD:/data" wanetty/upgopher:1.20.0` |
+| Docker | `docker run --rm -p 9090:9090 -v "$PWD:/data" wanetty/upgopher:1.21.0` |
 | Go | `go install github.com/wanetty/upgopher@latest` |
 | Binary | Download the archive for your OS from [GitHub Releases](https://github.com/wanetty/upgopher/releases/latest) and verify it with `checksums.txt` |
 
