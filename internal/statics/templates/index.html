@@ -15,6 +15,9 @@
             <i class="fa fa-moon-o" id="themeIcon"></i>
         </button>
         <div class="container">
+            {{ if .EncryptTransfers }}
+            <div class="code-box transfer-notice" role="status"><strong>Encrypted transfers</strong><p>Protects file content against passive tunnel observers. A modified page or JavaScript can break this protection.</p><button class="btn btn-secondary" type="button" onclick="UpgopherCrypto.showFingerprint()">Server fingerprint</button><div id="crypto-status"></div></div>
+            {{ end }}
             <div>
                 <img class="center" src="/static/logopher.webp" alt="Logo">
             </div>
@@ -73,11 +76,11 @@
                     </table>
                 </div>
 
-                {{ if not .ReadOnlyMode }}
+                {{ if and (not .ReadOnlyMode) (not .EncryptTransfers) }}
                 <div class="code-box">
                     <div><span class="line-number">1</span>curl -X POST -F "file=@[/path/to/file]" http://[SERVER]:[PORT]/</div>
                 </div>
-                {{ else }}
+                {{ else if .ReadOnlyMode }}
                 <div class="code-box" style="background-color: #fff3cd; border-color: #ffc107;">
                     <div><span class="line-number">!</span><strong>READONLY MODE:</strong> File uploads and deletions are disabled</div>
                 </div>
@@ -441,6 +444,8 @@
         </div>
 
         <script>
+            window.upgopherEncrypted = {{ .EncryptTransfers }};
+            {{ if .EncryptTransfers }}{{ .CryptoJavaScript }}{{ end }}
             {{ .JavaScript }}
         </script>
     </body>

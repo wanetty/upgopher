@@ -43,6 +43,7 @@
         <a href="#next">Next steps</a>
       </aside>
       <article class="doc-content">
+        <div class="callout"><strong>New in v1.21:</strong> encrypt file transfers in your browser with <code>-encrypt-transfers</code>. <a href="security.html#transfers">See how to enable encrypted transfers.</a></div>
         <h2 id="install">Install</h2>
         <h3>macOS with Homebrew</h3>
         <pre><code>brew install --cask wanetty/tap/upgopher</code></pre>
@@ -67,25 +68,25 @@ upgopher -dir ./shared</code></pre>
   --name upgopher \
   -p 9090:9090 \
   -v "$PWD:/data" \
-  wanetty/upgopher:1.20.0</code></pre>
+  wanetty/upgopher:1.21.0</code></pre>
         <p>The image runs as a non-root user and serves <code>/data</code>. Ensure that the mounted directory is readable and writable by UID/GID <code>65532</code>, or use <code>-readonly</code> with read permission only.</p>
         <pre><code>docker run -d \
   --name upgopher \
   --restart unless-stopped \
   -p 9090:9090 \
   -v "/srv/share:/data" \
-  ghcr.io/wanetty/upgopher:1.20.0 \
+  ghcr.io/wanetty/upgopher:1.21.0 \
   -dir /data -user admin -pass 'choose-a-strong-password'</code></pre>
         <p>Use an exact version tag for predictable deployments. Move to a newer version deliberately after reading its release notes.</p>
 
         <h2 id="verify">Verify a downloaded archive</h2>
         <p>Every release includes <code>checksums.txt</code>. Download it next to the archive and compare the SHA-256 digest.</p>
         <h3>macOS or Linux</h3>
-        <pre><code>shasum -a 256 upgopher_1.20.0_darwin_arm64.tar.gz
-grep upgopher_1.20.0_darwin_arm64.tar.gz checksums.txt</code></pre>
+        <pre><code>shasum -a 256 upgopher_1.21.0_darwin_arm64.tar.gz
+grep upgopher_1.21.0_darwin_arm64.tar.gz checksums.txt</code></pre>
         <h3>Windows PowerShell</h3>
-        <pre><code>Get-FileHash .\upgopher_1.20.0_windows_amd64.zip -Algorithm SHA256
-Select-String upgopher_1.20.0_windows_amd64.zip .\checksums.txt</code></pre>
+        <pre><code>Get-FileHash .\upgopher_1.21.0_windows_amd64.zip -Algorithm SHA256
+Select-String upgopher_1.21.0_windows_amd64.zip .\checksums.txt</code></pre>
 
         <h2 id="next">Next steps</h2>
         <ul>

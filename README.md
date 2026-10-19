@@ -22,6 +22,24 @@
   </picture>
 </p>
 
+## Important update · v1.21.0: encrypted file transfers
+
+Upgopher can now encrypt file content **in your browser before it travels
+through ngrok, Cloudflare Tunnel, trycloudflare, or another HTTP/HTTPS proxy**.
+The destination decrypts uploads automatically; downloads are decrypted in the
+browser. Enable it with one flag, using the same browser interface and tunnel URL:
+
+```bash
+upgopher -dir ./shared -encrypt-transfers -user admin -pass 'choose-a-strong-password'
+```
+
+Uploads, downloads, ZIP archives, text previews, search excerpts, and shared
+images all use the encrypted transport. It adds application-layer encryption
+alongside HTTPS, using AES-256-GCM and RSA-OAEP, with no extra dependencies.
+
+Read the [encrypted-transfer guide](https://wanetty.github.io/upgopher/security.html#transfers)
+and the [v1.21.0 release notes](https://github.com/wanetty/upgopher/releases/tag/v1.21.0).
+
 ## Start sharing in three steps
 
 ```bash
@@ -44,7 +62,7 @@ your machine.
 | --- | --- |
 | Homebrew | `brew install --cask wanetty/tap/upgopher` |
 | Scoop | `scoop bucket add wanetty https://github.com/wanetty/scoop-bucket` then `scoop install upgopher` |
-| Docker | `docker run --rm -p 9090:9090 -v "$PWD:/data" wanetty/upgopher:1.20.0` |
+| Docker | `docker run --rm -p 9090:9090 -v "$PWD:/data" wanetty/upgopher:1.21.0` |
 | Go | `go install github.com/wanetty/upgopher@latest` |
 | Binary | Download the archive for your OS from [GitHub Releases](https://github.com/wanetty/upgopher/releases/latest) and verify it with `checksums.txt` |
 
@@ -77,8 +95,8 @@ directory tree.
 for text and screenshots.
 
 **Controls:** optional Basic Auth, built-in HTTPS with a self-signed or custom
-certificate, read-only mode, hidden-file controls, upload limits, and server
-timeouts.
+certificate, read-only mode, hidden-file controls, upload limits, server
+timeouts, and optional browser-to-server file encryption.
 
 Everything required by the UI is embedded in the binary. Upgopher uses only the
 Go standard library and does not require a database or configuration file.
@@ -113,6 +131,10 @@ upgopher -dir ./public -readonly
 # Built-in HTTPS with an ephemeral self-signed certificate
 upgopher -dir ./shared -ssl
 
+# Encrypt file content before it crosses an HTTPS tunnel
+upgopher -dir ./shared -encrypt-transfers -user admin -pass 'choose-a-strong-password'
+# In another terminal: cloudflared tunnel --url http://localhost:9090
+
 # Custom port and a 1 GiB upload limit
 upgopher -dir ./shared -port 8080 -max-upload-size 1
 ```
@@ -126,6 +148,14 @@ Read the full [configuration reference](https://wanetty.github.io/upgopher/confi
 - Prefer a VPN or a reverse proxy with trusted TLS for internet-facing use.
 - `-ssl` without `-cert` and `-key` creates a new self-signed certificate at
   startup; clients will not trust it automatically.
+- `-encrypt-transfers` adds browser-to-server application encryption to uploads,
+  downloads, ZIPs, file previews/search results, and shared images. Open the HTTPS
+  tunnel URL or localhost in a browser with Web Crypto to use it.
+- The browser and server encrypt file content with AES-256-GCM and exchange
+  protected transfer keys using RSA-OAEP. Shared links handle decryption through
+  a browser download page. Uploaded files are saved in their original format.
+- Encrypted transfers include upload progress, cancellation, automatic temporary
+  transfer cleanup, and direct-to-disk downloads in supported browsers.
 - Basic Auth is global. Upgopher does not provide separate user accounts or
   per-folder permissions.
 - Clipboard data and custom path aliases are held in memory and disappear when

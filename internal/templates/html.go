@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -82,7 +83,7 @@ func CreateFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo, c
 	isReadableFile := IsTextFile(file.Name())
 
 	// Use action-buttons and appropriate button styles
-	downloadLink := fmt.Sprintf(`<button class="action-btn download" title="Download" onclick="window.location.href='/download/?path=%s'"><i class="fa fa-download"></i></button>`, escapedencodedFilePath)
+	downloadLink := fmt.Sprintf(`<button class="action-btn download" title="Download" onclick="downloadFile('/download/?path=%s')"><i class="fa fa-download"></i></button>`, url.QueryEscape(encodedFilePath))
 	copyURLButton := fmt.Sprintf(`<button class="action-btn link" title="Copy URL" onclick="copyToClipboard('%s', '%s')"><i class="fa fa-link"></i></button>`, currentPath, escapedFileName)
 	customPathButton := fmt.Sprintf(`<button class="action-btn edit" title="Create Custom Path" onclick="showCustomPathForm('%s', '%s')"><i class="fa fa-magic"></i></button>`, escapedFileName, currentPath)
 
@@ -121,12 +122,11 @@ func CreateFileRow(file fs.DirEntry, currentPath string, fileInfo os.FileInfo, c
 		downloadLink, copyURLButton, customPathButton, viewButton, searchButton, deleteLink)
 }
 
-
 // CreateZipButton generates HTML for the zip download button
 func CreateZipButton(currentPath string) string {
 	if currentPath != "" {
-		return `<button class="btn" onclick="window.location.href='/zip?path=` + currentPath + `'"><i class="fa fa-download"></i> Download Zip</button>`
+		return `<button class="btn" onclick="downloadFile('/zip?path=` + url.QueryEscape(currentPath) + `')"><i class="fa fa-download"></i> Download Zip</button>`
 	} else {
-		return `<button class="btn" onclick="window.location.href='/zip'"><i class="fa fa-download"></i> Download Zip</button>`
+		return `<button class="btn" onclick="downloadFile('/zip')"><i class="fa fa-download"></i> Download Zip</button>`
 	}
 }

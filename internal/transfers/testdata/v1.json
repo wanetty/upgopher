@@ -1,0 +1,9 @@
+{
+  "id": "00112233445566778899aabbccddeeff",
+  "kind": "upload",
+  "index": 3,
+  "key": "0000000000000000000000000000000000000000000000000000000000000000",
+  "nonce": "000102030405060708090a0b",
+  "plaintext": "Upgopher protocol vector — private bytes",
+  "packet": "AAECAwQFBgcICQoL3btUPXCV6oviCCCKiWy9YzhM3v/c6eCE7ylkn61FfQaalsjAbAVIiF2jo9R2u51KnxYAkdL7O/n8AQ=="
+}

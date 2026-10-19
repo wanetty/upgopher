@@ -34,6 +34,7 @@
         <a href="#exposure">Network exposure</a>
         <a href="#auth">Authentication</a>
         <a href="#tls">TLS</a>
+        <a href="#transfers">Encrypted transfers</a>
         <a href="#readonly">Read only</a>
         <a href="#data">Ephemeral state</a>
         <a href="#report">Report a vulnerability</a>
@@ -59,6 +60,16 @@ upgopher -ssl
 # Existing trusted certificate and key
 upgopher -ssl -cert /run/secrets/fullchain.pem -key /run/secrets/privkey.pem</code></pre>
         <p>The automatically generated certificate is self-signed, in memory, and recreated on restart. It encrypts traffic but does not establish a trusted identity. Public deployments should use a trusted certificate, commonly through a reverse proxy.</p>
+
+        <h2 id="transfers">Encrypted file transfers through tunnels</h2>
+        <pre><code>upgopher -dir ./shared -encrypt-transfers -user admin -pass 'choose-a-strong-password'
+# Another terminal:
+cloudflared tunnel --url http://localhost:9090</code></pre>
+        <p>Open the HTTPS tunnel URL in your browser. Upgopher encrypts file content before uploading and decrypts it at your server. Downloads are encrypted by the server and decrypted in your browser. Your existing tunnel URL and file-manager interface stay the same.</p>
+        <p>The encrypted transport covers uploads, downloads, ZIP archives, text previews, file-search excerpts, screenshots, and custom shared download links. Shared file links open a browser download page that handles decryption automatically.</p>
+        <p>Each transfer uses independent AES-256-GCM keys for uploads and responses. The browser protects those keys with the server's RSA-3072 public key using RSA-OAEP/SHA-256. The server keeps the corresponding private key in memory and generates a new one on startup. The public-key fingerprint is available in the interface and startup log.</p>
+        <p>Encryption runs in the browser with Web Crypto and in the server with the Go standard library, alongside the HTTPS connection provided by your tunnel. Files are processed in blocks, with upload progress, cancellation, and automatic cleanup of temporary transfers. Supported browsers can save downloads directly to disk.</p>
+        <p>The server saves uploaded files in their original format. Existing authentication, read-only settings, upload-size controls, and filesystem checks continue to apply. Enable the feature with <code>-encrypt-transfers</code>; the default transfer mode remains available when the flag is absent.</p>
 
         <h2 id="readonly">Read-only mode</h2>
         <pre><code>upgopher -dir /srv/public -readonly</code></pre>

@@ -24,6 +24,7 @@
       <a class="brand" href="index.html"><img src="assets/logopher.webp" alt="">Upgopher</a>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">Menu</button>
       <div class="nav-links" id="nav-links">
+        <a href="#update">New in 1.21</a>
         <a href="#use-cases">Use cases</a>
         <a href="#install">Install</a>
         <a href="configuration.html">Docs</a>
@@ -35,7 +36,7 @@
   <main id="main">
     <section class="wrap hero">
       <div>
-        <p class="eyebrow">Portable file sharing / v1.20.0</p>
+        <p class="eyebrow">Portable file sharing / v1.21.0</p>
         <h1>One binary.<br>Your files.<br><em>Any browser.</em></h1>
         <p class="hero-copy">Share files, folders, text, and screenshots between devices. No database, external runtime, or configuration file required.</p>
         <div class="actions">
@@ -49,6 +50,28 @@
           <img src="assets/upgopher-demo.gif" alt="Upgopher browser interface demonstrating file browsing, uploads, and the shared clipboard">
         </picture>
       </figure>
+    </section>
+
+    <section class="wrap release-update" id="update" aria-labelledby="update-title">
+      <div>
+        <p class="eyebrow">Important update / v1.21.0</p>
+        <h2 id="update-title">Encrypt files<br>before the tunnel.</h2>
+        <p>Keep the browser you use. Keep the link you share. Upgopher now encrypts file content before it travels through ngrok, Cloudflare Tunnel, trycloudflare, or another HTTP/HTTPS proxy.</p>
+        <p>Uploads are decrypted at your server. Downloads are decrypted in your browser. One flag enables the encrypted transport for files, ZIPs, previews, search excerpts, and shared images.</p>
+        <div class="actions">
+          <a class="button" href="security.html#transfers">Explore encrypted transfers</a>
+          <a class="button secondary" href="https://github.com/wanetty/upgopher/releases/tag/v1.21.0">Get v1.21 ↗</a>
+        </div>
+      </div>
+      <div class="update-details">
+        <span class="update-badge">Browser → encrypted content → your server</span>
+        <h3>One flag. Same file manager.</h3>
+        <pre><code>upgopher -dir ./shared \
+  -encrypt-transfers \
+  -user admin -pass 'your-password'</code></pre>
+        <p>AES-256-GCM · RSA-OAEP · No extra dependencies</p>
+        <p class="update-status">Add <code>-encrypt-transfers</code> to your existing command to enable it.</p>
+      </div>
     </section>
 
     <aside class="proof-strip" aria-label="Project attributes">
@@ -130,7 +153,7 @@
 <span class="prompt">&gt;</span> scoop install upgopher
 <span class="prompt">&gt;</span> upgopher -dir .\shared</pre>
           <pre class="install-panel" id="install-docker" hidden><span class="prompt">$</span> docker run --rm -p 9090:9090 \
-  -v "$PWD:/data" wanetty/upgopher:1.20.0</pre>
+  -v "$PWD:/data" wanetty/upgopher:1.21.0</pre>
           <pre class="install-panel" id="install-go" hidden><span class="prompt">$</span> go install github.com/wanetty/upgopher@latest
 <span class="prompt">$</span> upgopher -dir ./shared</pre>
         </div>
